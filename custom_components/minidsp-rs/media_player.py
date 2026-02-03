@@ -12,27 +12,10 @@ from homeassistant.const import STATE_ON, STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SOURCES
+from .const import DOMAIN, build_preset_maps, build_source_maps
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-# Map friendly labels (as shown to user) to API values
-_SOURCE_MAP = {
-    "Analog": "Analog",
-    "TOSLINK": "Toslink",
-    "SPDIF": "Spdif",
-    "USB": "Usb",
-    "Bluetooth": "Bluetooth",
-}
-
-# Preset map copied from select.py
-_PRESET_MAP = {
-    "Preset 1": 0,
-    "Preset 2": 1,
-    "Preset 3": 2,
-    "Preset 4": 3,
-}
 
 _MIN_DB = -127.0
 _MAX_DB = 0.0
@@ -55,6 +38,12 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.address}_mediaplayer"
         self._attr_name = coordinator.name or "MiniDSP"
+        self._source_label_to_api, self._source_api_to_label = build_source_maps(
+            coordinator.profile
+        )
+        self._preset_label_to_index, self._preset_index_to_label = build_preset_maps(
+            coordinator.profile
+        )
 
     # ------------------------------------------------------------
     # Properties
@@ -87,26 +76,24 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
     @property
     def source(self):  # type: ignore[override]
         raw = (self.coordinator.data or {}).get("master", {}).get("source")
-        for label, raw_val in _SOURCE_MAP.items():
-            if raw_val == raw:
-                return label
-        return raw
+        if raw is None:
+            return None
+        return self._source_api_to_label.get(raw, raw)
 
     @property
     def source_list(self):  # type: ignore[override]
-        return list(_SOURCE_MAP.keys())
+        return list(self._source_label_to_api.keys())
 
     @property
     def sound_mode(self):  # type: ignore[override]
         idx = (self.coordinator.data or {}).get("master", {}).get("preset")
-        for label, val in _PRESET_MAP.items():
-            if val == idx:
-                return label
-        return None
+        if idx is None:
+            return None
+        return self._preset_index_to_label.get(idx)
 
     @property
     def sound_mode_list(self):  # type: ignore[override]
-        return list(_PRESET_MAP.keys())
+        return list(self._preset_label_to_index.keys())
 
     @property
     def extra_state_attributes(self):
@@ -138,15 +125,17 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
         await self.coordinator.async_request_refresh()
 
     async def async_select_source(self, source: str):  # type: ignore[override]
-        api_val = _SOURCE_MAP.get(source, source)
+        api_val = self._source_label_to_api.get(source, source)
         await self.coordinator._api.async_set_source(api_val)
         await self.coordinator.async_request_refresh()
 
     async def async_select_sound_mode(self, sound_mode: str):  # type: ignore[override]
-        if sound_mode not in _PRESET_MAP:
+        if sound_mode not in self._preset_label_to_index:
             _LOGGER.warning("Unknown preset option %s", sound_mode)
             return
-        await self.coordinator._api.async_set_preset(_PRESET_MAP[sound_mode])
+        await self.coordinator._api.async_set_preset(
+            self._preset_label_to_index[sound_mode]
+        )
         await self.coordinator.async_request_refresh()
 
     # ------------------------------------------------------------

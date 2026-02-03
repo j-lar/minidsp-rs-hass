@@ -6,6 +6,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -46,6 +47,40 @@ class _LevelSensorBase(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
         }
 
 
+class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
+    """Diagnostic sensor showing the selected device profile/model."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: MiniDSPCoordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_profile"
+        self._attr_name = "Device Profile"
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        return self.coordinator.profile_name
+
+    @property
+    def extra_state_attributes(self):
+        info = self.coordinator.device_info or {}
+        attrs = {}
+        if info:
+            if "product_name" in info:
+                attrs["product_name"] = info["product_name"]
+            if "url" in info:
+                attrs["device_url"] = info["url"]
+        return attrs
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return {
+            "identifiers": {(DOMAIN, self.coordinator.address)},
+            "name": self.coordinator.name,
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
@@ -59,6 +94,8 @@ async def async_setup_entry(
     data = coordinator.data or {}
 
     entities: list[SensorEntity] = []
+
+    entities.append(MiniDSPProfileSensor(coordinator))
 
     for key in ("input_levels", "output_levels"):
         levels = data.get(key, [])

@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_URL, CONF_NAME
 import voluptuous as vol
 
-from .const import DOMAIN
+from .const import CONF_MODEL, DEVICE_PROFILES, DOMAIN, PROFILE_2X4HD
 
 from homeassistant import config_entries
 
@@ -27,14 +27,25 @@ class MiniDSPConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             base_url = user_input[CONF_URL]
             title = user_input.get(CONF_NAME, base_url)
+            model = user_input.get(CONF_MODEL, PROFILE_2X4HD)
 
             # Use base_url as unique_id to prevent duplicates
             await self.async_set_unique_id(base_url)
             self._abort_if_unique_id_configured()
 
-            return self.async_create_entry(title=title, data={CONF_URL: base_url})
+            return self.async_create_entry(
+                title=title, data={CONF_URL: base_url, CONF_MODEL: model}
+            )
 
-        schema = vol.Schema({vol.Required(CONF_URL): str, vol.Optional(CONF_NAME): str})
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_URL): str,
+                vol.Optional(CONF_NAME): str,
+                vol.Required(CONF_MODEL, default=PROFILE_2X4HD): vol.In(
+                    list(DEVICE_PROFILES.keys())
+                ),
+            }
+        )
         return self.async_show_form(step_id="user", data_schema=schema)
 
 
@@ -48,13 +59,27 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             # Persist new URL in options
             return self.async_create_entry(
-                title="", data={CONF_URL: user_input[CONF_URL]}
+                title="",
+                data={
+                    CONF_URL: user_input[CONF_URL],
+                    CONF_MODEL: user_input.get(CONF_MODEL, PROFILE_2X4HD),
+                },
             )
 
         current_url = self._entry.options.get(
             CONF_URL, self._entry.data.get(CONF_URL, "")
         )
-        schema = vol.Schema({vol.Required(CONF_URL, default=current_url): str})
+        current_model = self._entry.options.get(
+            CONF_MODEL, self._entry.data.get(CONF_MODEL, PROFILE_2X4HD)
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_URL, default=current_url): str,
+                vol.Required(CONF_MODEL, default=current_model): vol.In(
+                    list(DEVICE_PROFILES.keys())
+                ),
+            }
+        )
         return self.async_show_form(step_id="init", data_schema=schema)
 
 

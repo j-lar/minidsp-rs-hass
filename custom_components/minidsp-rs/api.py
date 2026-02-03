@@ -37,6 +37,13 @@ class MiniDSPAPI:
             resp.raise_for_status()
             return await resp.json()
 
+    async def async_get_devices(self) -> list[dict[str, Any]]:
+        """Return list of available devices from the daemon."""
+        url = f"{self._base_url}/devices"
+        async with self._session.get(url) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
     async def async_post_config(self, payload: dict[str, Any]) -> None:
         """POST configuration changes to the device."""
         url = f"{self._base_url}/devices/{self._device_index}/config"

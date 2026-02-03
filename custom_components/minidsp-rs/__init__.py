@@ -9,12 +9,19 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import MiniDSPAPI
-from .const import DOMAIN
+from .const import (
+    CONF_MODEL,
+    DEVICE_PROFILES,
+    DOMAIN,
+    PRODUCT_NAME_MODEL_MAP,
+    PROFILE_2X4HD,
+    PROFILE_GENERIC,
+)
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["media_player", "sensor", "switch", "number"]
+PLATFORMS: list[str] = ["media_player", "sensor", "switch", "number", "select"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict):  # type: ignore[arg-type]
@@ -39,7 +46,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
     api = MiniDSPAPI(base_url, session)
-    coordinator = MiniDSPCoordinator(hass, api, name=entry.title)
+    model = entry.options.get(CONF_MODEL) or entry.data.get(CONF_MODEL)
+    device_info = None
+    model_from_device = None
+    if not model:
+        try:
+            devices = await api.async_get_devices()
+            if devices:
+                device_info = devices[0]
+                product_name = str(device_info.get("product_name", "")).lower()
+                model_from_device = PRODUCT_NAME_MODEL_MAP.get(product_name)
+                if model_from_device is None and product_name:
+                    for key, value in PRODUCT_NAME_MODEL_MAP.items():
+                        if key in product_name:
+                            model_from_device = value
+                            break
+                model = model_from_device or PROFILE_GENERIC
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Failed to auto-detect device model: %s", err)
+    if not model:
+        model = PROFILE_2X4HD
+    profile = DEVICE_PROFILES.get(model, DEVICE_PROFILES[PROFILE_2X4HD])
+    coordinator = MiniDSPCoordinator(
+        hass, api, name=entry.title, profile=profile, profile_name=model
+    )
+    coordinator.device_info = device_info
+    if model_from_device and entry.options.get(CONF_MODEL) != model_from_device:
+        hass.async_create_task(
+            hass.config_entries.async_update_entry(
+                entry, options={**entry.options, CONF_MODEL: model_from_device}
+            )
+        )
 
     try:
         await coordinator.async_config_entry_first_refresh()

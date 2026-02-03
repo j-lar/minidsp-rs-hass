@@ -18,7 +18,14 @@ _LOGGER = logging.getLogger(__name__)
 class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator to manage MiniDSP data fetching and live updates."""
 
-    def __init__(self, hass: HomeAssistant, api: MiniDSPAPI, name: str | None = None):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: MiniDSPAPI,
+        name: str | None = None,
+        profile: dict[str, Any] | None = None,
+        profile_name: str | None = None,
+    ):
         super().__init__(
             hass,
             _LOGGER,
@@ -27,6 +34,9 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._api = api
         self._unsubscribe_ws: callable | None = None
+        self.profile = profile or {}
+        self.profile_name = profile_name
+        self.device_info: dict[str, Any] | None = None
         # Expose to entities
         self.base_url = api._base_url  # pragma: no cover
         self.address = self.base_url  # alias for clarity

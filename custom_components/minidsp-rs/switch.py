@@ -45,6 +45,37 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         }
 
 
+class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
+    """Switch to toggle master mute."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:volume-mute"
+
+    def __init__(self, coordinator: MiniDSPCoordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_mute"
+        self._attr_name = "Mute"
+
+    @property
+    def is_on(self):  # type: ignore[override]
+        return (self.coordinator.data or {}).get("master", {}).get("mute")
+
+    async def async_turn_on(self):  # type: ignore[override]
+        await self.coordinator._api.async_set_mute(True)
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self):  # type: ignore[override]
+        await self.coordinator._api.async_set_mute(False)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return {
+            "identifiers": {(DOMAIN, self.coordinator.address)},
+            "name": self.coordinator.name,
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
@@ -54,4 +85,4 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during switch platform setup")
         return
 
-    async_add_entities([DiracLiveSwitch(coordinator)])
+    async_add_entities([DiracLiveSwitch(coordinator), MuteSwitch(coordinator)])
