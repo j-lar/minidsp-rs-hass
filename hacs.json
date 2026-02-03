@@ -1,5 +1,5 @@
 {
-  "name": "MiniDSP RS",
+  "name": "MiniDSP RS - Forked",
   "homeassistant": "2024.8",
   "render_readme": true,
   "zip_release": false
