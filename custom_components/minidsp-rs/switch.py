@@ -21,7 +21,9 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_dirac"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_dirac"
+        )
         self._attr_name = "Dirac Live"
 
     # ---------------------------------------------------------------------
@@ -53,7 +55,9 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_mute"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_mute"
+        )
         self._attr_name = "Mute"
 
     @property

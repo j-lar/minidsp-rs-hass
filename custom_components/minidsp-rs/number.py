@@ -26,7 +26,9 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
     def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
         super().__init__(coordinator)
         self._output_index = output_index
-        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_gain"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_output_{output_index}_gain"
+        )
         self._attr_name = f"Output {output_index} Gain"
 
     @property

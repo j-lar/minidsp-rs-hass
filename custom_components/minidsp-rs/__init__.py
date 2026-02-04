@@ -10,18 +10,27 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import MiniDSPAPI
 from .const import (
+    CONF_DEVICE_INDEX,
     CONF_MODEL,
     DEVICE_PROFILES,
     DOMAIN,
     PRODUCT_NAME_MODEL_MAP,
     PROFILE_2X4HD,
     PROFILE_GENERIC,
+    validate_profile,
 )
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["media_player", "sensor", "switch", "number", "select"]
+PLATFORMS: list[str] = [
+    "media_player",
+    "sensor",
+    "binary_sensor",
+    "switch",
+    "number",
+    "select",
+]
 
 
 async def async_setup(hass: HomeAssistant, config: dict):  # type: ignore[arg-type]
@@ -45,7 +54,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady
 
     session = async_get_clientsession(hass)
-    api = MiniDSPAPI(base_url, session)
+    device_index = int(
+        entry.options.get(CONF_DEVICE_INDEX, entry.data.get(CONF_DEVICE_INDEX, 0))
+    )
+    api = MiniDSPAPI(base_url, session, device_index=device_index)
     model = entry.options.get(CONF_MODEL) or entry.data.get(CONF_MODEL)
     device_info = None
     model_from_device = None
@@ -53,7 +65,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             devices = await api.async_get_devices()
             if devices:
-                device_info = devices[0]
+                if 0 <= device_index < len(devices):
+                    device_info = devices[device_index]
+                else:
+                    device_info = devices[0]
                 product_name = str(device_info.get("product_name", "")).lower()
                 model_from_device = PRODUCT_NAME_MODEL_MAP.get(product_name)
                 if model_from_device is None and product_name:
@@ -66,7 +81,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Failed to auto-detect device model: %s", err)
     if not model:
         model = PROFILE_2X4HD
+    if device_info is None:
+        try:
+            devices = await api.async_get_devices()
+            if devices:
+                device_info = (
+                    devices[device_index]
+                    if 0 <= device_index < len(devices)
+                    else devices[0]
+                )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Failed to fetch device info: %s", err)
     profile = DEVICE_PROFILES.get(model, DEVICE_PROFILES[PROFILE_2X4HD])
+    if not validate_profile(profile):
+        _LOGGER.warning(
+            "Invalid device profile %s, falling back to %s",
+            model,
+            PROFILE_2X4HD,
+        )
+        model = PROFILE_2X4HD
+        profile = DEVICE_PROFILES[PROFILE_2X4HD]
     coordinator = MiniDSPCoordinator(
         hass, api, name=entry.title, profile=profile, profile_name=model
     )

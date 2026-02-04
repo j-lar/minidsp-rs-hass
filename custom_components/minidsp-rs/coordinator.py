@@ -37,6 +37,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.profile = profile or {}
         self.profile_name = profile_name
         self.device_info: dict[str, Any] | None = None
+        self.device_index = api._device_index
         # Expose to entities
         self.base_url = api._base_url  # pragma: no cover
         self.address = self.base_url  # alias for clarity

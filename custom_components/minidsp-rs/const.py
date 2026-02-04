@@ -5,6 +5,7 @@ SCAN_INTERVAL_SECONDS = 1
 
 # Config entry options
 CONF_MODEL = "model"
+CONF_DEVICE_INDEX = "device_index"
 
 PROFILE_2X4HD = "2x4HD"
 PROFILE_GENERIC = "Generic/Basic"
@@ -40,6 +41,23 @@ PRODUCT_NAME_MODEL_MAP = {
     "2x4 hd": PROFILE_2X4HD,
     "2x4hd": PROFILE_2X4HD,
 }
+
+
+def validate_profile(profile: dict) -> bool:
+    sources = profile.get("sources")
+    preset_count = profile.get("preset_count")
+    if not isinstance(sources, list) or not sources:
+        return False
+    for source in sources:
+        if not isinstance(source, dict):
+            return False
+        if "label" not in source or "api" not in source:
+            return False
+        if not isinstance(source["label"], str) or not isinstance(source["api"], str):
+            return False
+    if not isinstance(preset_count, int) or preset_count <= 0:
+        return False
+    return True
 
 
 def build_source_maps(profile: dict) -> tuple[dict[str, str], dict[str, str]]:

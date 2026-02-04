@@ -21,7 +21,9 @@ class PresetSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_preset"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_preset"
+        )
         self._attr_name = "Preset"
         self._label_to_index, self._index_to_label = build_preset_maps(
             coordinator.profile
@@ -61,7 +63,9 @@ class SourceSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_source"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_source"
+        )
         self._attr_name = "Source"
         self._label_to_api, self._api_to_label = build_source_maps(coordinator.profile)
 
