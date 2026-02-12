@@ -29,7 +29,7 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
     # ---------------------------------------------------------------------
     @property
     def is_on(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("dirac")
+        return self.coordinator.get_master_value("dirac")
 
     async def async_turn_on(self):  # type: ignore[override]
         await self.coordinator.api.async_set_dirac(True)
@@ -59,7 +59,7 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     @property
     def is_on(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("mute")
+        return self.coordinator.get_master_value("mute")
 
     async def async_turn_on(self):  # type: ignore[override]
         await self.coordinator.api.async_set_mute(True)
@@ -67,6 +67,41 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     async def async_turn_off(self):  # type: ignore[override]
         await self.coordinator.api.async_set_mute(False)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class OutputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
+    """Switch to toggle per-output mute."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:volume-mute"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
+        super().__init__(coordinator)
+        self._output_index = output_index
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_output_{output_index}_mute"
+        )
+        self._attr_name = f"Output {output_index} Mute"
+
+    @property
+    def is_on(self):  # type: ignore[override]
+        outputs = (self.coordinator.data or {}).get("outputs", [])
+        for output in outputs:
+            if output.get("index") == self._output_index:
+                return output.get("mute")
+        return None
+
+    async def async_turn_on(self):  # type: ignore[override]
+        await self.coordinator.api.async_set_output_mute(self._output_index, True)
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self):  # type: ignore[override]
+        await self.coordinator.api.async_set_output_mute(self._output_index, False)
         await self.coordinator.async_request_refresh()
 
     @property
@@ -83,4 +118,15 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during switch platform setup")
         return
 
-    async_add_entities([DiracLiveSwitch(coordinator), MuteSwitch(coordinator)])
+    entities: list[SwitchEntity] = [
+        DiracLiveSwitch(coordinator),
+        MuteSwitch(coordinator),
+    ]
+
+    # Per-output mute switches
+    data = coordinator.data or {}
+    output_levels = data.get("output_levels", [])
+    for i in range(len(output_levels)):
+        entities.append(OutputMuteSwitch(coordinator, i))
+
+    async_add_entities(entities)

@@ -47,9 +47,24 @@ class MiniDSPAPI:
             return await resp.json()
 
     async def async_post_config(self, payload: dict[str, Any]) -> None:
-        """POST configuration changes to the device."""
+        """POST configuration changes to the device.
+
+        Retries once on transient network errors.
+        """
         url = f"{self._base_url}/devices/{self._device_index}/config"
-        async with self._session.post(url, json=payload, timeout=self._TIMEOUT) as resp:
+        try:
+            async with self._session.post(
+                url, json=payload, timeout=self._TIMEOUT
+            ) as resp:
+                resp.raise_for_status()
+                return
+        except (aiohttp.ClientError, asyncio.TimeoutError) as first_err:
+            _LOGGER.debug("First POST attempt failed (%s), retrying", first_err)
+
+        await asyncio.sleep(0.5)
+        async with self._session.post(
+            url, json=payload, timeout=self._TIMEOUT
+        ) as resp:
             resp.raise_for_status()
 
     # ----------------------- convenience setters ------------------------
@@ -72,6 +87,16 @@ class MiniDSPAPI:
     async def async_set_output_gain(self, output_index: int, gain: float) -> None:
         await self.async_post_config(
             {"outputs": [{"index": output_index, "gain": gain}]}
+        )
+
+    async def async_set_output_mute(self, output_index: int, mute: bool) -> None:
+        await self.async_post_config(
+            {"outputs": [{"index": output_index, "mute": mute}]}
+        )
+
+    async def async_set_input_gain(self, input_index: int, gain: float) -> None:
+        await self.async_post_config(
+            {"inputs": [{"index": input_index, "gain": gain}]}
         )
 
     # ----------------------- websocket handling -------------------------
@@ -102,7 +127,10 @@ class MiniDSPAPI:
         """Cancel the websocket task (if any)."""
         if self._ws_task and not self._ws_task.done():
             self._stop_event.set()
-            await self._ws_task
+            try:
+                await self._ws_task
+            except asyncio.CancelledError:
+                pass
 
     # ---------------------------------------------------------------------
 

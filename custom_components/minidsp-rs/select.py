@@ -31,7 +31,7 @@ class PresetSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
 
     @property
     def current_option(self):  # type: ignore[override]
-        idx = (self.coordinator.data or {}).get("master", {}).get("preset")
+        idx = self.coordinator.get_master_value("preset")
         if idx is None:
             return None
         return self._index_to_label.get(idx)
@@ -68,7 +68,7 @@ class SourceSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
 
     @property
     def current_option(self):  # type: ignore[override]
-        raw = (self.coordinator.data or {}).get("master", {}).get("source")
+        raw = self.coordinator.get_master_value("source")
         if raw is None:
             return None
         return self._api_to_label.get(raw, raw)

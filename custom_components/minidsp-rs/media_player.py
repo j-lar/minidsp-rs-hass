@@ -68,16 +68,16 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     @property
     def volume_level(self):  # type: ignore[override]
-        gain = (self.coordinator.data or {}).get("master", {}).get("volume")
+        gain = self.coordinator.get_master_value("volume")
         return self._db_to_level(gain)
 
     @property
     def is_volume_muted(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("mute")
+        return self.coordinator.get_master_value("mute")
 
     @property
     def source(self):  # type: ignore[override]
-        raw = (self.coordinator.data or {}).get("master", {}).get("source")
+        raw = self.coordinator.get_master_value("source")
         if raw is None:
             return None
         return self._source_api_to_label.get(raw, raw)
@@ -88,7 +88,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     @property
     def sound_mode(self):  # type: ignore[override]
-        idx = (self.coordinator.data or {}).get("master", {}).get("preset")
+        idx = self.coordinator.get_master_value("preset")
         if idx is None:
             return None
         return self._preset_index_to_label.get(idx)
@@ -100,7 +100,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
     @property
     def extra_state_attributes(self):
         return {
-            "dirac": (self.coordinator.data or {}).get("master", {}).get("dirac"),
+            "dirac": self.coordinator.get_master_value("dirac"),
         }
 
     # ------------------------------------------------------------

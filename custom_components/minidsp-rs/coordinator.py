@@ -48,6 +48,10 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Public accessor for the underlying API client."""
         return self._api
 
+    def get_master_value(self, key: str, default: Any = None) -> Any:
+        """Return a value from the master status dict, or *default*."""
+        return (self.data or {}).get("master", {}).get(key, default)
+
     @property
     def ha_device_info(self) -> DeviceInfo:
         """Return a DeviceInfo for the HA device registry."""
