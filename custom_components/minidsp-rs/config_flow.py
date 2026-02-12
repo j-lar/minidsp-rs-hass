@@ -70,6 +70,17 @@ class MiniDSPConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=schema, errors=errors
         )
 
+    async def _async_validate_url(self, base_url: str) -> bool:
+        """Test connectivity to the minidsp-rs daemon."""
+        session = async_get_clientsession(self.hass)
+        api = MiniDSPAPI(base_url, session)
+        try:
+            await api.async_get_devices()
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Failed to reach MiniDSP at %s", base_url)
+            return False
+        return True
+
 
 class MiniDSPOptionsFlow(config_entries.OptionsFlow):
     """Handle options for an existing config entry."""

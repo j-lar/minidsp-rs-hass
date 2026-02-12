@@ -44,15 +44,12 @@ class PresetSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
         if option not in self._label_to_index:
             _LOGGER.warning("Unknown preset option %s", option)
             return
-        await self.coordinator._api.async_set_preset(self._label_to_index[option])
+        await self.coordinator.api.async_set_preset(self._label_to_index[option])
         await self.coordinator.async_request_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 class SourceSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
@@ -82,15 +79,12 @@ class SourceSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
 
     async def async_select_option(self, option: str) -> None:  # type: ignore[override]
         api_val = self._label_to_api.get(option, option)
-        await self.coordinator._api.async_set_source(api_val)
+        await self.coordinator.api.async_set_source(api_val)
         await self.coordinator.async_request_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

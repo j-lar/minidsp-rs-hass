@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, OUTPUT_GAIN_MAX_DB, OUTPUT_GAIN_MIN_DB
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:volume-high"
-    _attr_native_min_value = -127.0
-    _attr_native_max_value = 12.0
+    _attr_native_min_value = OUTPUT_GAIN_MIN_DB
+    _attr_native_max_value = OUTPUT_GAIN_MAX_DB
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = "dBFS"
 
@@ -41,7 +41,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_output_gain(
+        await self.coordinator.api.async_set_output_gain(
             self._output_index, float(value)
         )
         # Force refresh to reflect new value
@@ -49,10 +49,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

@@ -32,19 +32,16 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         return (self.coordinator.data or {}).get("master", {}).get("dirac")
 
     async def async_turn_on(self):  # type: ignore[override]
-        await self.coordinator._api.async_set_dirac(True)
+        await self.coordinator.api.async_set_dirac(True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self):  # type: ignore[override]
-        await self.coordinator._api.async_set_dirac(False)
+        await self.coordinator.api.async_set_dirac(False)
         await self.coordinator.async_request_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
@@ -65,19 +62,16 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         return (self.coordinator.data or {}).get("master", {}).get("mute")
 
     async def async_turn_on(self):  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(True)
+        await self.coordinator.api.async_set_mute(True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self):  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(False)
+        await self.coordinator.api.async_set_mute(False)
         await self.coordinator.async_request_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

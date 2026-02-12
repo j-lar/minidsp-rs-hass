@@ -33,10 +33,7 @@ class MiniDSPConnectionSensor(CoordinatorEntity[MiniDSPCoordinator], BinarySenso
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

@@ -12,13 +12,13 @@ from homeassistant.const import STATE_ON, STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, build_preset_maps, build_source_maps
+from .const import DOMAIN, MASTER_VOLUME_MAX_DB, MASTER_VOLUME_MIN_DB, build_preset_maps, build_source_maps
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-_MIN_DB = -127.0
-_MAX_DB = 0.0
+_MIN_DB = MASTER_VOLUME_MIN_DB
+_MAX_DB = MASTER_VOLUME_MAX_DB
 
 
 class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntity):
@@ -109,7 +109,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     async def async_set_volume_level(self, volume: float):  # type: ignore[override]
         db_gain = self._level_to_db(volume)
-        await self.coordinator._api.async_set_volume(db_gain)
+        await self.coordinator.api.async_set_volume(db_gain)
         await self.coordinator.async_request_refresh()
 
     async def async_volume_up(self):  # type: ignore[override]
@@ -123,19 +123,19 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
         await self.async_set_volume_level(max(0.0, self.volume_level - 0.05))
 
     async def async_mute_volume(self, mute: bool):  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(mute)
+        await self.coordinator.api.async_set_mute(mute)
         await self.coordinator.async_request_refresh()
 
     async def async_select_source(self, source: str):  # type: ignore[override]
         api_val = self._source_label_to_api.get(source, source)
-        await self.coordinator._api.async_set_source(api_val)
+        await self.coordinator.api.async_set_source(api_val)
         await self.coordinator.async_request_refresh()
 
     async def async_select_sound_mode(self, sound_mode: str):  # type: ignore[override]
         if sound_mode not in self._preset_label_to_index:
             _LOGGER.warning("Unknown preset option %s", sound_mode)
             return
-        await self.coordinator._api.async_set_preset(
+        await self.coordinator.api.async_set_preset(
             self._preset_label_to_index[sound_mode]
         )
         await self.coordinator.async_request_refresh()
@@ -143,10 +143,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
     # ------------------------------------------------------------
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

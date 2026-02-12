@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
@@ -41,6 +42,23 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Expose to entities
         self.base_url = api._base_url  # pragma: no cover
         self.address = self.base_url  # alias for clarity
+
+    @property
+    def api(self) -> MiniDSPAPI:
+        """Public accessor for the underlying API client."""
+        return self._api
+
+    @property
+    def ha_device_info(self) -> DeviceInfo:
+        """Return a DeviceInfo for the HA device registry."""
+        info = self.device_info or {}
+        product_name = info.get("product_name")
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.address)},
+            name=self.name,
+            manufacturer="MiniDSP",
+            model=product_name or self.profile_name,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -117,15 +135,13 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._api.async_disconnect()
 
     def _rounded_levels(self, data: dict[str, Any]) -> dict[str, Any]:
-        def _round_val(val: Any):
-            return int(round(val)) if isinstance(val, (int, float)) else val
+        def _round_recursive(val: Any) -> Any:
+            if isinstance(val, (int, float)):
+                return int(round(val))
+            if isinstance(val, dict):
+                return {k: _round_recursive(v) for k, v in val.items()}
+            if isinstance(val, (list, tuple)):
+                return [_round_recursive(v) for v in val]
+            return val
 
-        rounded_data: dict[str, Any] = {}
-        for key, value in data.items():
-            if isinstance(value, (list, tuple)):
-                rounded_data[key] = [_round_val(v) for v in value]
-            elif isinstance(value, dict):
-                rounded_data[key] = {k: _round_val(v) for k, v in value.items()}
-            else:
-                rounded_data[key] = _round_val(value)
-        return rounded_data
+        return {k: _round_recursive(v) for k, v in data.items()}
