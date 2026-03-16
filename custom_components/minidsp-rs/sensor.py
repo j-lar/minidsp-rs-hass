@@ -26,7 +26,9 @@ class _LevelSensorBase(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._key = key  # "input_levels" or "output_levels"
         self._index = index
-        self._attr_unique_id = f"{coordinator.address}_{key}_{index}"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_{key}_{index}"
+        )
         self._attr_name = name
 
     @property
@@ -41,10 +43,7 @@ class _LevelSensorBase(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
@@ -55,7 +54,9 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_profile"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_profile"
+        )
         self._attr_name = "Device Profile"
 
     @property
@@ -65,7 +66,7 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
     @property
     def extra_state_attributes(self):
         info = self.coordinator.device_info or {}
-        attrs = {}
+        attrs = {"device_index": self.coordinator.device_index}
         if info:
             if "product_name" in info:
                 attrs["product_name"] = info["product_name"]
@@ -75,10 +76,37 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
+
+
+class MiniDSPVersionSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
+    """Diagnostic sensor exposing a hardware version field (hw_id, dsp_version, serial)."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    _FIELD_NAMES = {
+        "hw_id": "Hardware ID",
+        "dsp_version": "DSP Version",
+        "serial": "Serial Number",
+    }
+
+    def __init__(self, coordinator: MiniDSPCoordinator, field: str):
+        super().__init__(coordinator)
+        self._field = field
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_{field}"
+        )
+        self._attr_name = self._FIELD_NAMES[field]
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        version = (self.coordinator.device_info or {}).get("version") or {}
+        return version.get(self._field)
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(
@@ -90,18 +118,21 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during sensor platform setup")
         return
 
-    # Determine how many channels we have based on initial data
     data = coordinator.data or {}
 
-    entities: list[SensorEntity] = []
+    entities: list[SensorEntity] = [MiniDSPProfileSensor(coordinator)]
 
-    entities.append(MiniDSPProfileSensor(coordinator))
+    # Hardware version diagnostics (only if version data is available)
+    version = (coordinator.device_info or {}).get("version")
+    if version:
+        for field in ("hw_id", "dsp_version", "serial"):
+            entities.append(MiniDSPVersionSensor(coordinator, field))
 
     for key in ("input_levels", "output_levels"):
         levels = data.get(key, [])
         for idx, _ in enumerate(levels):
             friendly = "Input" if key == "input_levels" else "Output"
-            name = f"{friendly} Level {idx}"
+            name = f"{friendly} Level {idx + 1}"
             entities.append(_LevelSensorBase(coordinator, name, idx, key))
 
     async_add_entities(entities)

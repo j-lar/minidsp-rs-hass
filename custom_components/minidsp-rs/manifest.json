@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "config_flow": true,
   "iot_class": "local_push",
-  "codeowners": ["@yourusername"],
+  "min_ha_version": "2024.8",
+  "codeowners": ["@j-lar"],
+  "documentation": "https://github.com/j-lar/minidsp-rs-hass",
+  "issue_tracker": "https://github.com/j-lar/minidsp-rs-hass/issues",
   "requirements": []
 }

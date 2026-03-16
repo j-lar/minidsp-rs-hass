@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
-# Precision for level values
-# _ROUND_PRECISION = 0
 
 
 class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -33,13 +31,35 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=None,
         )
         self._api = api
-        self._unsubscribe_ws: callable | None = None
+        self._unsubscribe_ws: Callable[[], None] | None = None
         self.profile = profile or {}
         self.profile_name = profile_name
         self.device_info: dict[str, Any] | None = None
+        self.device_index: int = api._device_index
         # Expose to entities
-        self.base_url = api._base_url  # pragma: no cover
+        self.base_url = api._base_url
         self.address = self.base_url  # alias for clarity
+
+    @property
+    def api(self) -> MiniDSPAPI:
+        """Public accessor for the underlying API client."""
+        return self._api
+
+    def get_master_value(self, key: str, default: Any = None) -> Any:
+        """Return a value from the master status dict, or *default*."""
+        return (self.data or {}).get("master", {}).get(key, default)
+
+    @property
+    def ha_device_info(self) -> DeviceInfo:
+        """Return a DeviceInfo for the HA device registry."""
+        info = self.device_info or {}
+        product_name = info.get("product_name")
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.address)},
+            name=self.name,
+            manufacturer="MiniDSP",
+            model=product_name or self.profile_name,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -53,6 +73,11 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Start listening to websocket events."""
 
         async def _levels_callback(event: dict[str, Any]):
+            # On reconnect, fetch a full state refresh to clear any stale data
+            if event.get("_reconnected"):
+                self.hass.async_create_task(self.async_request_refresh())
+                return
+
             # Update only levels fields without re-fetching everything
             current = dict(self.data or {})
             updated = False
@@ -75,10 +100,10 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ):
                         current["master"] = {}
 
-                    # Round numeric fields and merge
+                    # Round numeric fields and merge (bool-safe: mute must stay bool)
                     merged_master = dict(current["master"])
                     for m_key, m_val in incoming_master.items():
-                        if isinstance(m_val, (int, float)):
+                        if isinstance(m_val, (int, float)) and not isinstance(m_val, bool):
                             m_val = int(round(m_val))
                         merged_master[m_key] = m_val
 
@@ -86,7 +111,11 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         current["master"] = merged_master
                         updated = True
 
-            # Handle outputs updates
+            # Handle inputs/outputs updates
+            if "inputs" in event and isinstance(event["inputs"], list):
+                current["inputs"] = event["inputs"]
+                updated = True
+
             if "outputs" in event and isinstance(event["outputs"], list):
                 current["outputs"] = event["outputs"]
                 updated = True
@@ -116,15 +145,15 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._api.async_disconnect()
 
     def _rounded_levels(self, data: dict[str, Any]) -> dict[str, Any]:
-        def _round_val(val: Any):
-            return int(round(val)) if isinstance(val, (int, float)) else val
+        def _round_recursive(val: Any) -> Any:
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (int, float)):
+                return int(round(val))
+            if isinstance(val, dict):
+                return {k: _round_recursive(v) for k, v in val.items()}
+            if isinstance(val, (list, tuple)):
+                return [_round_recursive(v) for v in val]
+            return val
 
-        rounded_data: dict[str, Any] = {}
-        for key, value in data.items():
-            if isinstance(value, (list, tuple)):
-                rounded_data[key] = [_round_val(v) for v in value]
-            elif isinstance(value, dict):
-                rounded_data[key] = {k: _round_val(v) for k, v in value.items()}
-            else:
-                rounded_data[key] = _round_val(value)
-        return rounded_data
+        return {k: _round_recursive(v) for k, v in data.items()}
