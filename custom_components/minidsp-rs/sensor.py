@@ -41,10 +41,7 @@ class _LevelSensorBase(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
@@ -75,10 +72,7 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(
@@ -101,7 +95,7 @@ async def async_setup_entry(
         levels = data.get(key, [])
         for idx, _ in enumerate(levels):
             friendly = "Input" if key == "input_levels" else "Output"
-            name = f"{friendly} Level {idx}"
+            name = f"{friendly} Level {idx + 1}"
             entities.append(_LevelSensorBase(coordinator, name, idx, key))
 
     async_add_entities(entities)

@@ -27,7 +27,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
         super().__init__(coordinator)
         self._output_index = output_index
         self._attr_unique_id = f"{coordinator.address}_output_{output_index}_gain"
-        self._attr_name = f"Output {output_index} Gain"
+        self._attr_name = f"Output {output_index + 1} Gain"
 
     @property
     def native_value(self):  # type: ignore[override]
@@ -47,10 +47,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     @property
     def device_info(self):  # type: ignore[override]
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.address)},
-            "name": self.coordinator.name,
-        }
+        return self.coordinator.ha_device_info
 
 
 async def async_setup_entry(

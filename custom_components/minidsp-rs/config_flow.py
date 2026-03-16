@@ -5,6 +5,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_URL, CONF_NAME
+from homeassistant.core import callback
 import voluptuous as vol
 
 from .const import CONF_MODEL, DEVICE_PROFILES, DOMAIN, PROFILE_2X4HD
@@ -48,6 +49,14 @@ class MiniDSPConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="user", data_schema=schema)
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> MiniDSPOptionsFlow:
+        """Return the options flow handler."""
+        return MiniDSPOptionsFlow(config_entry)
+
 
 class MiniDSPOptionsFlow(config_entries.OptionsFlow):
     """Handle options for an existing config entry."""
@@ -83,8 +92,3 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="init", data_schema=schema)
 
 
-# Hook for Home Assistant to retrieve the options flow
-
-
-async def async_get_options_flow(config_entry: config_entries.ConfigEntry):  # type: ignore[override]
-    return MiniDSPOptionsFlow(config_entry)

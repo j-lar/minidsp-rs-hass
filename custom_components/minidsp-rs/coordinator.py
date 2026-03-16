@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
 from .const import DOMAIN
+
+# See: https://developers.home-assistant.io/docs/device_registry_index
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,13 +35,26 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=None,
         )
         self._api = api
-        self._unsubscribe_ws: callable | None = None
+        self._unsubscribe_ws: Callable[[], None] | None = None
         self.profile = profile or {}
         self.profile_name = profile_name
         self.device_info: dict[str, Any] | None = None
         # Expose to entities
         self.base_url = api._base_url  # pragma: no cover
         self.address = self.base_url  # alias for clarity
+
+    @property
+    def ha_device_info(self) -> dict[str, Any]:
+        """Return HA device registry info shared by all entities."""
+        product_name = (
+            (self.device_info or {}).get("product_name") if self.device_info else None
+        )
+        return {
+            "identifiers": {(DOMAIN, self.address)},
+            "name": self.name,
+            "manufacturer": "MiniDSP",
+            "model": product_name or self.profile_name,
+        }
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -53,6 +68,11 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Start listening to websocket events."""
 
         async def _levels_callback(event: dict[str, Any]):
+            # On reconnect, fetch a full state refresh to clear any stale data
+            if event.get("_reconnected"):
+                self.hass.async_create_task(self.async_request_refresh())
+                return
+
             # Update only levels fields without re-fetching everything
             current = dict(self.data or {})
             updated = False

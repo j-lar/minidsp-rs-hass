@@ -113,6 +113,7 @@ class MiniDSPAPI:
                 _LOGGER.debug("Connecting to MiniDSP websocket at %s", ws_url)
                 async with self._session.ws_connect(ws_url, heartbeat=30) as ws:
                     backoff = 1.0  # Reset backoff after successful connect
+                    await self._dispatch_event({"_reconnected": True})
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             try:
