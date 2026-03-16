@@ -8,10 +8,46 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    MASTER_VOLUME_MIN_DB,
+    MASTER_VOLUME_MAX_DB,
+    OUTPUT_GAIN_MIN_DB,
+    OUTPUT_GAIN_MAX_DB,
+)
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class MiniDSPMasterGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
+    """Master volume as a precise dB number entity (-127 to 0 dB)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:knob"
+    _attr_native_min_value = MASTER_VOLUME_MIN_DB
+    _attr_native_max_value = MASTER_VOLUME_MAX_DB
+    _attr_native_step = 0.5
+    _attr_native_unit_of_measurement = "dB"
+
+    def __init__(self, coordinator: MiniDSPCoordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_master_gain"
+        )
+        self._attr_name = "Master Volume"
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        return self.coordinator.get_master_value("volume")
+
+    async def async_set_native_value(self, value: float):  # type: ignore[override]
+        await self.coordinator.api.async_set_volume(float(value))
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
 
 
 class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
@@ -19,15 +55,17 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:volume-high"
-    _attr_native_min_value = -127.0
-    _attr_native_max_value = 12.0
+    _attr_native_min_value = OUTPUT_GAIN_MIN_DB
+    _attr_native_max_value = OUTPUT_GAIN_MAX_DB
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = "dBFS"
 
     def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
         super().__init__(coordinator)
         self._output_index = output_index
-        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_gain"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_output_{output_index}_gain"
+        )
         self._attr_name = f"Output {output_index + 1} Gain"
 
     @property
@@ -38,7 +76,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_output_gain(self._output_index, float(value))
+        await self.coordinator.api.async_set_output_gain(self._output_index, float(value))
         await self.coordinator.async_request_refresh()
 
     @property
@@ -51,15 +89,17 @@ class MiniDSPInputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:microphone"
-    _attr_native_min_value = -127.0
-    _attr_native_max_value = 12.0
+    _attr_native_min_value = OUTPUT_GAIN_MIN_DB
+    _attr_native_max_value = OUTPUT_GAIN_MAX_DB
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = "dBFS"
 
     def __init__(self, coordinator: MiniDSPCoordinator, input_index: int):
         super().__init__(coordinator)
         self._input_index = input_index
-        self._attr_unique_id = f"{coordinator.address}_input_{input_index}_gain"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_input_{input_index}_gain"
+        )
         self._attr_name = f"Input {input_index + 1} Gain"
 
     @property
@@ -70,7 +110,7 @@ class MiniDSPInputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_input_gain(self._input_index, float(value))
+        await self.coordinator.api.async_set_input_gain(self._input_index, float(value))
         await self.coordinator.async_request_refresh()
 
     @property
@@ -91,7 +131,9 @@ class MiniDSPOutputDelay(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
     def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
         super().__init__(coordinator)
         self._output_index = output_index
-        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_delay"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_output_{output_index}_delay"
+        )
         self._attr_name = f"Output {output_index + 1} Delay"
 
     @property
@@ -106,7 +148,7 @@ class MiniDSPOutputDelay(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_output_delay(self._output_index, float(value))
+        await self.coordinator.api.async_set_output_delay(self._output_index, float(value))
         await self.coordinator.async_request_refresh()
 
     @property
@@ -141,7 +183,8 @@ class MiniDSPOutputCompressorNumber(CoordinatorEntity[MiniDSPCoordinator], Numbe
         self._attr_native_unit_of_measurement = meta[2]
         self._attr_icon = meta[3]
         self._attr_unique_id = (
-            f"{coordinator.address}_output_{output_index}_compressor_{param}"
+            f"{coordinator.address}_d{coordinator.device_index}"
+            f"_output_{output_index}_compressor_{param}"
         )
         self._attr_name = f"Output {output_index + 1} Compressor {param.capitalize()}"
 
@@ -156,7 +199,7 @@ class MiniDSPOutputCompressorNumber(CoordinatorEntity[MiniDSPCoordinator], Numbe
         return self._compressor_data().get(self._param)
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_output_compressor(
+        await self.coordinator.api.async_set_output_compressor(
             self._output_index, **{self._param: float(value)}
         )
         await self.coordinator.async_request_refresh()
@@ -179,7 +222,7 @@ async def async_setup_entry(
     num_inputs = len(data.get("input_levels", []))
     num_outputs = len(data.get("output_levels", []))
 
-    entities: list[NumberEntity] = []
+    entities: list[NumberEntity] = [MiniDSPMasterGain(coordinator)]
 
     for i in range(num_outputs):
         entities.append(MiniDSPOutputGain(coordinator, i))

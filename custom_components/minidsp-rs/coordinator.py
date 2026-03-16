@@ -4,17 +4,13 @@ import logging
 from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
 from .const import DOMAIN
 
-# See: https://developers.home-assistant.io/docs/device_registry_index
-
 _LOGGER = logging.getLogger(__name__)
-
-# Precision for level values
-# _ROUND_PRECISION = 0
 
 
 class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -39,22 +35,31 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.profile = profile or {}
         self.profile_name = profile_name
         self.device_info: dict[str, Any] | None = None
+        self.device_index: int = api._device_index
         # Expose to entities
-        self.base_url = api._base_url  # pragma: no cover
+        self.base_url = api._base_url
         self.address = self.base_url  # alias for clarity
 
     @property
-    def ha_device_info(self) -> dict[str, Any]:
-        """Return HA device registry info shared by all entities."""
-        product_name = (
-            (self.device_info or {}).get("product_name") if self.device_info else None
+    def api(self) -> MiniDSPAPI:
+        """Public accessor for the underlying API client."""
+        return self._api
+
+    def get_master_value(self, key: str, default: Any = None) -> Any:
+        """Return a value from the master status dict, or *default*."""
+        return (self.data or {}).get("master", {}).get(key, default)
+
+    @property
+    def ha_device_info(self) -> DeviceInfo:
+        """Return a DeviceInfo for the HA device registry."""
+        info = self.device_info or {}
+        product_name = info.get("product_name")
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.address)},
+            name=self.name,
+            manufacturer="MiniDSP",
+            model=product_name or self.profile_name,
         )
-        return {
-            "identifiers": {(DOMAIN, self.address)},
-            "name": self.name,
-            "manufacturer": "MiniDSP",
-            "model": product_name or self.profile_name,
-        }
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -95,7 +100,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ):
                         current["master"] = {}
 
-                    # Round numeric fields and merge
+                    # Round numeric fields and merge (bool-safe: mute must stay bool)
                     merged_master = dict(current["master"])
                     for m_key, m_val in incoming_master.items():
                         if isinstance(m_val, (int, float)) and not isinstance(m_val, bool):
@@ -140,15 +145,15 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._api.async_disconnect()
 
     def _rounded_levels(self, data: dict[str, Any]) -> dict[str, Any]:
-        def _round_val(val: Any):
-            return int(round(val)) if isinstance(val, (int, float)) and not isinstance(val, bool) else val
+        def _round_recursive(val: Any) -> Any:
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (int, float)):
+                return int(round(val))
+            if isinstance(val, dict):
+                return {k: _round_recursive(v) for k, v in val.items()}
+            if isinstance(val, (list, tuple)):
+                return [_round_recursive(v) for v in val]
+            return val
 
-        rounded_data: dict[str, Any] = {}
-        for key, value in data.items():
-            if isinstance(value, (list, tuple)):
-                rounded_data[key] = [_round_val(v) for v in value]
-            elif isinstance(value, dict):
-                rounded_data[key] = {k: _round_val(v) for k, v in value.items()}
-            else:
-                rounded_data[key] = _round_val(value)
-        return rounded_data
+        return {k: _round_recursive(v) for k, v in data.items()}

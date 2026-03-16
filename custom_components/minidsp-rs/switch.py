@@ -22,20 +22,21 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_dirac"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_dirac"
+        )
         self._attr_name = "Dirac Live"
 
-    # ---------------------------------------------------------------------
     @property
     def is_on(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("dirac")
+        return self.coordinator.get_master_value("dirac")
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_dirac(True)
+        await self.coordinator.api.async_set_dirac(True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_dirac(False)
+        await self.coordinator.api.async_set_dirac(False)
         await self.coordinator.async_request_refresh()
 
     @property
@@ -51,19 +52,21 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_mute"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_mute"
+        )
         self._attr_name = "Mute"
 
     @property
     def is_on(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("mute")
+        return self.coordinator.get_master_value("mute")
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(True)
+        await self.coordinator.api.async_set_mute(True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(False)
+        await self.coordinator.api.async_set_mute(False)
         await self.coordinator.async_request_refresh()
 
     @property
@@ -80,7 +83,9 @@ class OutputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
     def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
         super().__init__(coordinator)
         self._output_index = output_index
-        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_mute"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_output_{output_index}_mute"
+        )
         self._attr_name = f"Output {output_index + 1} Mute"
 
     def _output_data(self) -> dict[str, Any]:
@@ -94,11 +99,11 @@ class OutputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         return self._output_data().get("mute")
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_output_mute(self._output_index, True)
+        await self.coordinator.api.async_set_output_mute(self._output_index, True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_output_mute(self._output_index, False)
+        await self.coordinator.api.async_set_output_mute(self._output_index, False)
         await self.coordinator.async_request_refresh()
 
     @property
@@ -115,7 +120,9 @@ class InputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
     def __init__(self, coordinator: MiniDSPCoordinator, input_index: int):
         super().__init__(coordinator)
         self._input_index = input_index
-        self._attr_unique_id = f"{coordinator.address}_input_{input_index}_mute"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_input_{input_index}_mute"
+        )
         self._attr_name = f"Input {input_index + 1} Mute"
 
     def _input_data(self) -> dict[str, Any]:
@@ -129,11 +136,11 @@ class InputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         return self._input_data().get("mute")
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_input_mute(self._input_index, True)
+        await self.coordinator.api.async_set_input_mute(self._input_index, True)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_input_mute(self._input_index, False)
+        await self.coordinator.api.async_set_input_mute(self._input_index, False)
         await self.coordinator.async_request_refresh()
 
     @property
@@ -151,7 +158,8 @@ class OutputCompressorBypassSwitch(CoordinatorEntity[MiniDSPCoordinator], Switch
         super().__init__(coordinator)
         self._output_index = output_index
         self._attr_unique_id = (
-            f"{coordinator.address}_output_{output_index}_compressor_bypass"
+            f"{coordinator.address}_d{coordinator.device_index}"
+            f"_output_{output_index}_compressor_bypass"
         )
         self._attr_name = f"Output {output_index + 1} Compressor Bypass"
 
@@ -166,13 +174,13 @@ class OutputCompressorBypassSwitch(CoordinatorEntity[MiniDSPCoordinator], Switch
         return self._compressor_data().get("bypass")
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_output_compressor(
+        await self.coordinator.api.async_set_output_compressor(
             self._output_index, bypass=True
         )
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
-        await self.coordinator._api.async_set_output_compressor(
+        await self.coordinator.api.async_set_output_compressor(
             self._output_index, bypass=False
         )
         await self.coordinator.async_request_refresh()

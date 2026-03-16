@@ -12,13 +12,13 @@ from homeassistant.const import STATE_ON, STATE_OFF
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, build_preset_maps, build_source_maps
+from .const import DOMAIN, MASTER_VOLUME_MIN_DB, MASTER_VOLUME_MAX_DB, build_preset_maps, build_source_maps
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-_MIN_DB = -127.0
-_MAX_DB = 0.0
+_MIN_DB = MASTER_VOLUME_MIN_DB
+_MAX_DB = MASTER_VOLUME_MAX_DB
 
 # Volume taper: quadratic curve so 50% slider ≈ -32 dB instead of -64 dB.
 # Gives finer control in the audible range (upper portion of slider).
@@ -71,16 +71,16 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     @property
     def volume_level(self):  # type: ignore[override]
-        gain = (self.coordinator.data or {}).get("master", {}).get("volume")
+        gain = self.coordinator.get_master_value("volume")
         return self._db_to_level(gain)
 
     @property
     def is_volume_muted(self):  # type: ignore[override]
-        return (self.coordinator.data or {}).get("master", {}).get("mute")
+        return self.coordinator.get_master_value("mute")
 
     @property
     def source(self):  # type: ignore[override]
-        raw = (self.coordinator.data or {}).get("master", {}).get("source")
+        raw = self.coordinator.get_master_value("source")
         if raw is None:
             return None
         return self._source_api_to_label.get(raw, raw)
@@ -91,7 +91,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     @property
     def sound_mode(self):  # type: ignore[override]
-        idx = (self.coordinator.data or {}).get("master", {}).get("preset")
+        idx = self.coordinator.get_master_value("preset")
         if idx is None:
             return None
         return self._preset_index_to_label.get(idx)
@@ -103,7 +103,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
     @property
     def extra_state_attributes(self):
         return {
-            "dirac": (self.coordinator.data or {}).get("master", {}).get("dirac"),
+            "dirac": self.coordinator.get_master_value("dirac"),
         }
 
     # ------------------------------------------------------------
@@ -112,7 +112,7 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
 
     async def async_set_volume_level(self, volume: float):  # type: ignore[override]
         db_gain = self._level_to_db(volume)
-        await self.coordinator._api.async_set_volume(db_gain)
+        await self.coordinator.api.async_set_volume(db_gain)
         await self.coordinator.async_request_refresh()
 
     async def async_volume_up(self):  # type: ignore[override]
@@ -126,19 +126,19 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
         await self.async_set_volume_level(max(0.0, self.volume_level - 0.05))
 
     async def async_mute_volume(self, mute: bool):  # type: ignore[override]
-        await self.coordinator._api.async_set_mute(mute)
+        await self.coordinator.api.async_set_mute(mute)
         await self.coordinator.async_request_refresh()
 
     async def async_select_source(self, source: str):  # type: ignore[override]
         api_val = self._source_label_to_api.get(source, source)
-        await self.coordinator._api.async_set_source(api_val)
+        await self.coordinator.api.async_set_source(api_val)
         await self.coordinator.async_request_refresh()
 
     async def async_select_sound_mode(self, sound_mode: str):  # type: ignore[override]
         if sound_mode not in self._preset_label_to_index:
             _LOGGER.warning("Unknown preset option %s", sound_mode)
             return
-        await self.coordinator._api.async_set_preset(
+        await self.coordinator.api.async_set_preset(
             self._preset_label_to_index[sound_mode]
         )
         await self.coordinator.async_request_refresh()

@@ -13,11 +13,13 @@ _LOGGER = logging.getLogger(__name__)
 class MiniDSPAPI:
     """Simple async wrapper around the minidsp-rs HTTP & WebSocket API."""
 
+    _TIMEOUT = aiohttp.ClientTimeout(total=10)
+
     def __init__(
         self, base_url: str, session: aiohttp.ClientSession, device_index: int = 0
     ):
-        # Normalise base url (strip trailing slash)
-        self._base_url = base_url.rstrip("/")
+        # Normalise base url (strip trailing slash, convert ws:// → http://)
+        self._base_url = self._normalize_base_url(base_url).rstrip("/")
         self._session = session
         self._device_index = device_index
         self._ws_task: asyncio.Task | None = None
@@ -33,21 +35,36 @@ class MiniDSPAPI:
     async def async_get_status(self) -> dict[str, Any]:
         """Return the status summary for the device."""
         url = f"{self._base_url}/devices/{self._device_index}"
-        async with self._session.get(url) as resp:
+        async with self._session.get(url, timeout=self._TIMEOUT) as resp:
             resp.raise_for_status()
             return await resp.json()
 
     async def async_get_devices(self) -> list[dict[str, Any]]:
         """Return list of available devices from the daemon."""
         url = f"{self._base_url}/devices"
-        async with self._session.get(url) as resp:
+        async with self._session.get(url, timeout=self._TIMEOUT) as resp:
             resp.raise_for_status()
             return await resp.json()
 
     async def async_post_config(self, payload: dict[str, Any]) -> None:
-        """POST configuration changes to the device."""
+        """POST configuration changes to the device.
+
+        Retries once on transient network errors.
+        """
         url = f"{self._base_url}/devices/{self._device_index}/config"
-        async with self._session.post(url, json=payload) as resp:
+        try:
+            async with self._session.post(
+                url, json=payload, timeout=self._TIMEOUT
+            ) as resp:
+                resp.raise_for_status()
+                return
+        except (aiohttp.ClientError, asyncio.TimeoutError) as first_err:
+            _LOGGER.debug("First POST attempt failed (%s), retrying", first_err)
+
+        await asyncio.sleep(0.5)
+        async with self._session.post(
+            url, json=payload, timeout=self._TIMEOUT
+        ) as resp:
             resp.raise_for_status()
 
     # ----------------------- convenience setters ------------------------
@@ -150,7 +167,10 @@ class MiniDSPAPI:
         """Cancel the websocket task (if any)."""
         if self._ws_task and not self._ws_task.done():
             self._stop_event.set()
-            await self._ws_task
+            try:
+                await self._ws_task
+            except asyncio.CancelledError:
+                pass
 
     # ---------------------------------------------------------------------
 
@@ -207,17 +227,26 @@ class MiniDSPAPI:
         # Convert http(s) to ws(s)
         if self._base_url.startswith("https://"):
             scheme = "wss://"
-            rest = self._base_url[len("https://") :]
+            rest = self._base_url[len("https://"):]
         elif self._base_url.startswith("http://"):
             scheme = "ws://"
-            rest = self._base_url[len("http://") :]
+            rest = self._base_url[len("http://"):]
         elif self._base_url.startswith("tcp://"):
             # minidsp-rs sometimes advertises tcp scheme; treat as ws
             scheme = "ws://"
-            rest = self._base_url[len("tcp://") :]
+            rest = self._base_url[len("tcp://"):]
         else:
-            # Assume scheme already correct (ws:// or wss:// or tcp:// etc.)
+            # Assume scheme already correct (ws:// or wss://)
             scheme = ""
             rest = self._base_url
 
         return f"{scheme}{rest}/devices/{self._device_index}?levels=true&poll=true"
+
+    @staticmethod
+    def _normalize_base_url(base_url: str) -> str:
+        """Convert ws(s):// base URLs to http(s):// for HTTP requests."""
+        if base_url.startswith("ws://"):
+            return "http://" + base_url[len("ws://"):]
+        if base_url.startswith("wss://"):
+            return "https://" + base_url[len("wss://"):]
+        return base_url

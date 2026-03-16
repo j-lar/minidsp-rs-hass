@@ -26,7 +26,9 @@ class _LevelSensorBase(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._key = key  # "input_levels" or "output_levels"
         self._index = index
-        self._attr_unique_id = f"{coordinator.address}_{key}_{index}"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_{key}_{index}"
+        )
         self._attr_name = name
 
     @property
@@ -52,7 +54,9 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
 
     def __init__(self, coordinator: MiniDSPCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.address}_profile"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_profile"
+        )
         self._attr_name = "Device Profile"
 
     @property
@@ -62,7 +66,7 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
     @property
     def extra_state_attributes(self):
         info = self.coordinator.device_info or {}
-        attrs = {}
+        attrs = {"device_index": self.coordinator.device_index}
         if info:
             if "product_name" in info:
                 attrs["product_name"] = info["product_name"]
@@ -90,7 +94,9 @@ class MiniDSPVersionSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
     def __init__(self, coordinator: MiniDSPCoordinator, field: str):
         super().__init__(coordinator)
         self._field = field
-        self._attr_unique_id = f"{coordinator.address}_{field}"
+        self._attr_unique_id = (
+            f"{coordinator.address}_d{coordinator.device_index}_{field}"
+        )
         self._attr_name = self._FIELD_NAMES[field]
 
     @property
@@ -112,12 +118,9 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during sensor platform setup")
         return
 
-    # Determine how many channels we have based on initial data
     data = coordinator.data or {}
 
-    entities: list[SensorEntity] = []
-
-    entities.append(MiniDSPProfileSensor(coordinator))
+    entities: list[SensorEntity] = [MiniDSPProfileSensor(coordinator)]
 
     # Hardware version diagnostics (only if version data is available)
     version = (coordinator.device_info or {}).get("version")
