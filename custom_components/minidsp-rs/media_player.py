@@ -20,6 +20,11 @@ _LOGGER = logging.getLogger(__name__)
 _MIN_DB = -127.0
 _MAX_DB = 0.0
 
+# Volume taper: quadratic curve so 50% slider ≈ -32 dB instead of -64 dB.
+# Gives finer control in the audible range (upper portion of slider).
+# level_to_db: db = MIN_DB + level² * (MAX_DB - MIN_DB)
+# db_to_level: level = sqrt((db - MIN_DB) / (MAX_DB - MIN_DB))
+
 
 class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntity):
     """MediaPlayer entity that encapsulates MiniDSP controls."""
@@ -54,15 +59,15 @@ class MiniDSPMediaPlayer(CoordinatorEntity[MiniDSPCoordinator], MediaPlayerEntit
         # MiniDSP has no explicit power state; always ON if reachable.
         return STATE_ON if self.coordinator.last_update_success else STATE_OFF
 
-    # Volume conversion helpers
+    # Volume conversion helpers (quadratic taper)
     def _db_to_level(self, gain: float | None) -> float | None:
         if gain is None:
             return None
-        # Map [_MIN_DB, _MAX_DB] to [0.0, 1.0]
-        return max(0.0, min(1.0, (gain - _MIN_DB) / (_MAX_DB - _MIN_DB)))
+        normalized = (gain - _MIN_DB) / (_MAX_DB - _MIN_DB)
+        return max(0.0, min(1.0, normalized ** 0.5))
 
     def _level_to_db(self, level: float) -> float:
-        return (_MAX_DB - _MIN_DB) * level + _MIN_DB
+        return _MIN_DB + (level ** 2) * (_MAX_DB - _MIN_DB)
 
     @property
     def volume_level(self):  # type: ignore[override]

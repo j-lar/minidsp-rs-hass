@@ -106,7 +106,11 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         current["master"] = merged_master
                         updated = True
 
-            # Handle outputs updates
+            # Handle inputs/outputs updates
+            if "inputs" in event and isinstance(event["inputs"], list):
+                current["inputs"] = event["inputs"]
+                updated = True
+
             if "outputs" in event and isinstance(event["outputs"], list):
                 current["outputs"] = event["outputs"]
                 updated = True

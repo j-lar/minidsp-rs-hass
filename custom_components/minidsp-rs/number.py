@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
@@ -31,18 +32,133 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     @property
     def native_value(self):  # type: ignore[override]
-        # Try to get current gain from outputs data if available
-        outputs = (self.coordinator.data or {}).get("outputs", [])
-        for output in outputs:
+        for output in (self.coordinator.data or {}).get("outputs", []):
             if output.get("index") == self._output_index:
                 return output.get("gain")
         return None
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
-        await self.coordinator._api.async_set_output_gain(
-            self._output_index, float(value)
+        await self.coordinator._api.async_set_output_gain(self._output_index, float(value))
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class MiniDSPInputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
+    """Input channel gain control (-127 to 12 dB)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:microphone"
+    _attr_native_min_value = -127.0
+    _attr_native_max_value = 12.0
+    _attr_native_step = 0.5
+    _attr_native_unit_of_measurement = "dBFS"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, input_index: int):
+        super().__init__(coordinator)
+        self._input_index = input_index
+        self._attr_unique_id = f"{coordinator.address}_input_{input_index}_gain"
+        self._attr_name = f"Input {input_index + 1} Gain"
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        for inp in (self.coordinator.data or {}).get("inputs", []):
+            if inp.get("index") == self._input_index:
+                return inp.get("gain")
+        return None
+
+    async def async_set_native_value(self, value: float):  # type: ignore[override]
+        await self.coordinator._api.async_set_input_gain(self._input_index, float(value))
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class MiniDSPOutputDelay(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
+    """Output channel delay control (0 to 1000 ms)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 1000.0
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = "ms"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
+        super().__init__(coordinator)
+        self._output_index = output_index
+        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_delay"
+        self._attr_name = f"Output {output_index + 1} Delay"
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        for output in (self.coordinator.data or {}).get("outputs", []):
+            if output.get("index") == self._output_index:
+                delay = output.get("delay")
+                if delay is None:
+                    return None
+                # Duration is {secs, nanos} — convert to milliseconds
+                return delay.get("secs", 0) * 1000.0 + delay.get("nanos", 0) / 1_000_000.0
+        return None
+
+    async def async_set_native_value(self, value: float):  # type: ignore[override]
+        await self.coordinator._api.async_set_output_delay(self._output_index, float(value))
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class MiniDSPOutputCompressorNumber(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
+    """A single numeric parameter of the output compressor."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:sine-wave"
+    _attr_native_step = 0.01
+
+    # Per-parameter metadata: (min, max, unit, icon)
+    _PARAM_META: dict[str, tuple[float, float, str, str]] = {
+        "threshold": (-80.0, 0.0, "dBFS", "mdi:sine-wave"),
+        "ratio":     (1.0, 100.0, ":1", "mdi:division"),
+        "attack":    (0.0, 2000.0, "ms", "mdi:timer-outline"),
+        "release":   (0.0, 2000.0, "ms", "mdi:timer-outline"),
+    }
+
+    def __init__(
+        self, coordinator: MiniDSPCoordinator, output_index: int, param: str
+    ):
+        super().__init__(coordinator)
+        self._output_index = output_index
+        self._param = param
+        meta = self._PARAM_META[param]
+        self._attr_native_min_value = meta[0]
+        self._attr_native_max_value = meta[1]
+        self._attr_native_unit_of_measurement = meta[2]
+        self._attr_icon = meta[3]
+        self._attr_unique_id = (
+            f"{coordinator.address}_output_{output_index}_compressor_{param}"
         )
-        # Force refresh to reflect new value
+        self._attr_name = f"Output {output_index + 1} Compressor {param.capitalize()}"
+
+    def _compressor_data(self) -> dict[str, Any]:
+        for output in (self.coordinator.data or {}).get("outputs", []):
+            if output.get("index") == self._output_index:
+                return output.get("compressor") or {}
+        return {}
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        return self._compressor_data().get(self._param)
+
+    async def async_set_native_value(self, value: float):  # type: ignore[override]
+        await self.coordinator._api.async_set_output_compressor(
+            self._output_index, **{self._param: float(value)}
+        )
         await self.coordinator.async_request_refresh()
 
     @property
@@ -59,13 +175,19 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during number platform setup")
         return
 
-    # Determine number of output channels from output_levels
     data = coordinator.data or {}
-    output_levels = data.get("output_levels", [])
-    num_outputs = len(output_levels)
+    num_inputs = len(data.get("input_levels", []))
+    num_outputs = len(data.get("output_levels", []))
 
-    entities = []
+    entities: list[NumberEntity] = []
+
     for i in range(num_outputs):
         entities.append(MiniDSPOutputGain(coordinator, i))
+        entities.append(MiniDSPOutputDelay(coordinator, i))
+        for param in MiniDSPOutputCompressorNumber._PARAM_META:
+            entities.append(MiniDSPOutputCompressorNumber(coordinator, i, param))
+
+    for i in range(num_inputs):
+        entities.append(MiniDSPInputGain(coordinator, i))
 
     async_add_entities(entities)

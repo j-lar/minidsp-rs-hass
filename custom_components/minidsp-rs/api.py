@@ -72,6 +72,56 @@ class MiniDSPAPI:
             {"outputs": [{"index": output_index, "gain": gain}]}
         )
 
+    async def async_set_output_mute(self, output_index: int, mute: bool) -> None:
+        await self.async_post_config(
+            {"outputs": [{"index": output_index, "mute": mute}]}
+        )
+
+    async def async_set_output_delay(
+        self, output_index: int, milliseconds: float
+    ) -> None:
+        total_ns = int(milliseconds * 1_000_000)
+        secs = total_ns // 1_000_000_000
+        nanos = total_ns % 1_000_000_000
+        await self.async_post_config(
+            {"outputs": [{"index": output_index, "delay": {"secs": secs, "nanos": nanos}}]}
+        )
+
+    async def async_set_output_compressor(
+        self,
+        output_index: int,
+        *,
+        attack: float | None = None,
+        release: float | None = None,
+        ratio: float | None = None,
+        threshold: float | None = None,
+        bypass: bool | None = None,
+    ) -> None:
+        compressor: dict[str, Any] = {}
+        if attack is not None:
+            compressor["attack"] = attack
+        if release is not None:
+            compressor["release"] = release
+        if ratio is not None:
+            compressor["ratio"] = ratio
+        if threshold is not None:
+            compressor["threshold"] = threshold
+        if bypass is not None:
+            compressor["bypass"] = bypass
+        await self.async_post_config(
+            {"outputs": [{"index": output_index, "compressor": compressor}]}
+        )
+
+    async def async_set_input_gain(self, input_index: int, gain: float) -> None:
+        await self.async_post_config(
+            {"inputs": [{"index": input_index, "gain": gain}]}
+        )
+
+    async def async_set_input_mute(self, input_index: int, mute: bool) -> None:
+        await self.async_post_config(
+            {"inputs": [{"index": input_index, "mute": mute}]}
+        )
+
     # ----------------------- websocket handling -------------------------
 
     async def async_subscribe_levels(

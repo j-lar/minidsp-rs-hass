@@ -71,6 +71,117 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
         return self.coordinator.ha_device_info
 
 
+class OutputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
+    """Switch to mute a single output channel."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:volume-off"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
+        super().__init__(coordinator)
+        self._output_index = output_index
+        self._attr_unique_id = f"{coordinator.address}_output_{output_index}_mute"
+        self._attr_name = f"Output {output_index + 1} Mute"
+
+    def _output_data(self) -> dict[str, Any]:
+        for output in (self.coordinator.data or {}).get("outputs", []):
+            if output.get("index") == self._output_index:
+                return output
+        return {}
+
+    @property
+    def is_on(self):  # type: ignore[override]
+        return self._output_data().get("mute")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_output_mute(self._output_index, True)
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_output_mute(self._output_index, False)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class InputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
+    """Switch to mute a single input channel."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:microphone-off"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, input_index: int):
+        super().__init__(coordinator)
+        self._input_index = input_index
+        self._attr_unique_id = f"{coordinator.address}_input_{input_index}_mute"
+        self._attr_name = f"Input {input_index + 1} Mute"
+
+    def _input_data(self) -> dict[str, Any]:
+        for inp in (self.coordinator.data or {}).get("inputs", []):
+            if inp.get("index") == self._input_index:
+                return inp
+        return {}
+
+    @property
+    def is_on(self):  # type: ignore[override]
+        return self._input_data().get("mute")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_input_mute(self._input_index, True)
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_input_mute(self._input_index, False)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
+class OutputCompressorBypassSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
+    """Switch to bypass the compressor on a single output channel."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:audio-input-rca"
+
+    def __init__(self, coordinator: MiniDSPCoordinator, output_index: int):
+        super().__init__(coordinator)
+        self._output_index = output_index
+        self._attr_unique_id = (
+            f"{coordinator.address}_output_{output_index}_compressor_bypass"
+        )
+        self._attr_name = f"Output {output_index + 1} Compressor Bypass"
+
+    def _compressor_data(self) -> dict[str, Any]:
+        for output in (self.coordinator.data or {}).get("outputs", []):
+            if output.get("index") == self._output_index:
+                return output.get("compressor") or {}
+        return {}
+
+    @property
+    def is_on(self):  # type: ignore[override]
+        return self._compressor_data().get("bypass")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_output_compressor(
+            self._output_index, bypass=True
+        )
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
+        await self.coordinator._api.async_set_output_compressor(
+            self._output_index, bypass=False
+        )
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
@@ -80,4 +191,17 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during switch platform setup")
         return
 
-    async_add_entities([DiracLiveSwitch(coordinator), MuteSwitch(coordinator)])
+    data = coordinator.data or {}
+    num_inputs = len(data.get("input_levels", []))
+    num_outputs = len(data.get("output_levels", []))
+
+    entities: list[SwitchEntity] = [DiracLiveSwitch(coordinator), MuteSwitch(coordinator)]
+
+    for i in range(num_outputs):
+        entities.append(OutputMuteSwitch(coordinator, i))
+        entities.append(OutputCompressorBypassSwitch(coordinator, i))
+
+    for i in range(num_inputs):
+        entities.append(InputMuteSwitch(coordinator, i))
+
+    async_add_entities(entities)

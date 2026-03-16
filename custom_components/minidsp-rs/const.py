@@ -6,7 +6,11 @@ CONF_MODEL = "model"
 PROFILE_2X4HD = "2x4HD"
 PROFILE_GENERIC = "Generic/Basic"
 
-# TODO: Auto-detect device model from /devices and choose a profile automatically.
+# TODO: Multi-device support — MiniDSPAPI currently hardcodes device_index=0.
+#       Implementing this requires config flow changes to let users pick a device index
+#       and to create one config entry per device. Deferred for future work.
+#
+# Auto-detection of device model from /devices is already implemented in __init__.py.
 DEVICE_PROFILES = {
     PROFILE_2X4HD: {
         "sources": [

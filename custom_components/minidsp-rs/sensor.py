@@ -75,6 +75,34 @@ class MiniDSPProfileSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
         return self.coordinator.ha_device_info
 
 
+class MiniDSPVersionSensor(CoordinatorEntity[MiniDSPCoordinator], SensorEntity):
+    """Diagnostic sensor exposing a hardware version field (hw_id, dsp_version, serial)."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    _FIELD_NAMES = {
+        "hw_id": "Hardware ID",
+        "dsp_version": "DSP Version",
+        "serial": "Serial Number",
+    }
+
+    def __init__(self, coordinator: MiniDSPCoordinator, field: str):
+        super().__init__(coordinator)
+        self._field = field
+        self._attr_unique_id = f"{coordinator.address}_{field}"
+        self._attr_name = self._FIELD_NAMES[field]
+
+    @property
+    def native_value(self):  # type: ignore[override]
+        version = (self.coordinator.device_info or {}).get("version") or {}
+        return version.get(self._field)
+
+    @property
+    def device_info(self):  # type: ignore[override]
+        return self.coordinator.ha_device_info
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
@@ -90,6 +118,12 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
 
     entities.append(MiniDSPProfileSensor(coordinator))
+
+    # Hardware version diagnostics (only if version data is available)
+    version = (coordinator.device_info or {}).get("version")
+    if version:
+        for field in ("hw_id", "dsp_version", "serial"):
+            entities.append(MiniDSPVersionSensor(coordinator, field))
 
     for key in ("input_levels", "output_levels"):
         levels = data.get(key, [])
