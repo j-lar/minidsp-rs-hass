@@ -98,7 +98,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # Round numeric fields and merge
                     merged_master = dict(current["master"])
                     for m_key, m_val in incoming_master.items():
-                        if isinstance(m_val, (int, float)):
+                        if isinstance(m_val, (int, float)) and not isinstance(m_val, bool):
                             m_val = int(round(m_val))
                         merged_master[m_key] = m_val
 
@@ -137,7 +137,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _rounded_levels(self, data: dict[str, Any]) -> dict[str, Any]:
         def _round_val(val: Any):
-            return int(round(val)) if isinstance(val, (int, float)) else val
+            return int(round(val)) if isinstance(val, (int, float)) and not isinstance(val, bool) else val
 
         rounded_data: dict[str, Any] = {}
         for key, value in data.items():
