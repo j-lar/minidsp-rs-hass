@@ -19,6 +19,7 @@ from .const import (
     PRODUCT_NAME_MODEL_MAP,
     PROFILE_2X4HD,
     PROFILE_GENERIC,
+    profile_from_hw_id,
     validate_profile,
 )
 from .coordinator import MiniDSPCoordinator
@@ -72,13 +73,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     if 0 <= device_index < len(devices)
                     else devices[0]
                 )
-                product_name = str(device_info.get("product_name", "")).lower()
-                model_from_device = PRODUCT_NAME_MODEL_MAP.get(product_name)
-                if model_from_device is None and product_name:
-                    for key, value in PRODUCT_NAME_MODEL_MAP.items():
-                        if key in product_name:
-                            model_from_device = value
-                            break
+                # 1. Try hw_id / dsp_version (most reliable)
+                version = device_info.get("version") or {}
+                hw_id = version.get("hw_id")
+                dsp_version = version.get("dsp_version")
+                if hw_id is not None and dsp_version is not None:
+                    model_from_device = profile_from_hw_id(int(hw_id), int(dsp_version))
+                    if model_from_device:
+                        _LOGGER.debug(
+                            "Auto-detected model %s via hw_id=%s dsp_version=%s",
+                            model_from_device, hw_id, dsp_version,
+                        )
+                # 2. Fall back to product name substring matching
+                if model_from_device is None:
+                    product_name = str(device_info.get("product_name", "")).lower()
+                    model_from_device = PRODUCT_NAME_MODEL_MAP.get(product_name)
+                    if model_from_device is None and product_name:
+                        for key, value in PRODUCT_NAME_MODEL_MAP.items():
+                            if key in product_name:
+                                model_from_device = value
+                                break
                 model = model_from_device or PROFILE_GENERIC
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Failed to auto-detect device model: %s", err)

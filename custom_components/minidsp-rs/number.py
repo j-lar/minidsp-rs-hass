@@ -222,13 +222,16 @@ async def async_setup_entry(
     num_inputs = len(data.get("input_levels", []))
     num_outputs = len(data.get("output_levels", []))
 
+    has_compressor = coordinator.profile.get("has_compressor", False)
+
     entities: list[NumberEntity] = [MiniDSPMasterGain(coordinator)]
 
     for i in range(num_outputs):
         entities.append(MiniDSPOutputGain(coordinator, i))
         entities.append(MiniDSPOutputDelay(coordinator, i))
-        for param in MiniDSPOutputCompressorNumber._PARAM_META:
-            entities.append(MiniDSPOutputCompressorNumber(coordinator, i, param))
+        if has_compressor:
+            for param in MiniDSPOutputCompressorNumber._PARAM_META:
+                entities.append(MiniDSPOutputCompressorNumber(coordinator, i, param))
 
     for i in range(num_inputs):
         entities.append(MiniDSPInputGain(coordinator, i))

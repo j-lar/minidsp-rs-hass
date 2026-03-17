@@ -96,4 +96,7 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during select platform setup")
         return
 
-    async_add_entities([PresetSelect(coordinator), SourceSelect(coordinator)])
+    entities: list[SelectEntity] = [PresetSelect(coordinator)]
+    if coordinator.profile.get("sources"):
+        entities.append(SourceSelect(coordinator))
+    async_add_entities(entities)
