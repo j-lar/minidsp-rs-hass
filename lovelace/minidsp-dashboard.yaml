@@ -1,0 +1,272 @@
+# MiniDSP Lovelace Dashboard
+#
+# How to use:
+#   1. In Home Assistant, go to Settings → Dashboards → Add Dashboard (or edit an existing one).
+#   2. Open the dashboard editor, click the three-dot menu → "Edit in YAML" (raw config editor).
+#   3. Paste this file's contents.
+#   4. Replace every occurrence of YOUR_DEVICE_NAME with the actual slug of your device.
+#
+# Finding your entity IDs:
+#   Go to Developer Tools → States and search for "minidsp".
+#   Entity IDs follow the pattern: <platform>.<device_slug>_<entity_name_slug>
+#   e.g. if your device shows as "MiniDSP 2x4 HD", the slug is "minidsp_2x4_hd".
+#
+# This example is written for a 2x4 HD (2 inputs, 4 outputs, 4 presets).
+# Adjust the output/input sections to match the actual channel count of your device.
+
+title: MiniDSP
+views:
+  - title: MiniDSP
+    path: minidsp
+    icon: mdi:amplifier
+    cards:
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 1 — Main Controls
+      # The media-player card gives a unified volume slider, mute
+      # button, source selector and preset (sound mode) picker all
+      # in one familiar widget.
+      # ─────────────────────────────────────────────────────────────
+      - type: media-control
+        entity: media_player.YOUR_DEVICE_NAME
+
+      # Quick-access toggles and selectors
+      - type: entities
+        title: Controls
+        entities:
+          - entity: switch.YOUR_DEVICE_NAME_mute
+            name: Master Mute
+          - entity: switch.YOUR_DEVICE_NAME_dirac_live
+            name: Dirac Live
+          - entity: select.YOUR_DEVICE_NAME_source
+            name: Input Source
+          - entity: select.YOUR_DEVICE_NAME_preset
+            name: Preset
+          - entity: number.YOUR_DEVICE_NAME_master_volume
+            name: Master Volume (dB)
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 2 — Signal Levels
+      # Gauge cards give an at-a-glance view of signal levels.
+      # Values are in dBFS (typically –60 dBFS to 0 dBFS).
+      # Adjust the min/max thresholds to suit your setup.
+      # ─────────────────────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_input_level_1
+            name: In 1
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_input_level_2
+            name: In 2
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_1
+            name: Out 1
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_2
+            name: Out 2
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_3
+            name: Out 3
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_4
+            name: Out 4
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 3 — Input Channels
+      # Per-input gain and mute controls.
+      # Add or remove rows to match your actual input count.
+      # ─────────────────────────────────────────────────────────────
+      - type: entities
+        title: Input Channels
+        entities:
+          - type: section
+            label: Input 1
+          - entity: number.YOUR_DEVICE_NAME_input_1_gain
+            name: Gain
+          - entity: switch.YOUR_DEVICE_NAME_input_1_mute
+            name: Mute
+
+          - type: section
+            label: Input 2
+          - entity: number.YOUR_DEVICE_NAME_input_2_gain
+            name: Gain
+          - entity: switch.YOUR_DEVICE_NAME_input_2_mute
+            name: Mute
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 4 — Output Channels
+      # Per-output gain, mute and delay.
+      # Add or remove blocks to match your actual output count.
+      # ─────────────────────────────────────────────────────────────
+      - type: entities
+        title: Output Channels
+        entities:
+          - type: section
+            label: Output 1
+          - entity: number.YOUR_DEVICE_NAME_output_1_gain
+            name: Gain
+          - entity: number.YOUR_DEVICE_NAME_output_1_delay
+            name: Delay
+          - entity: switch.YOUR_DEVICE_NAME_output_1_mute
+            name: Mute
+
+          - type: section
+            label: Output 2
+          - entity: number.YOUR_DEVICE_NAME_output_2_gain
+            name: Gain
+          - entity: number.YOUR_DEVICE_NAME_output_2_delay
+            name: Delay
+          - entity: switch.YOUR_DEVICE_NAME_output_2_mute
+            name: Mute
+
+          - type: section
+            label: Output 3
+          - entity: number.YOUR_DEVICE_NAME_output_3_gain
+            name: Gain
+          - entity: number.YOUR_DEVICE_NAME_output_3_delay
+            name: Delay
+          - entity: switch.YOUR_DEVICE_NAME_output_3_mute
+            name: Mute
+
+          - type: section
+            label: Output 4
+          - entity: number.YOUR_DEVICE_NAME_output_4_gain
+            name: Gain
+          - entity: number.YOUR_DEVICE_NAME_output_4_delay
+            name: Delay
+          - entity: switch.YOUR_DEVICE_NAME_output_4_mute
+            name: Mute
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 5 — Compressor (per output)
+      # Threshold, ratio, attack, release and bypass toggle for each
+      # output channel's built-in compressor.
+      # Duplicate this card and change the output number as needed.
+      # ─────────────────────────────────────────────────────────────
+      - type: entities
+        title: Compressor — Output 1
+        entities:
+          - entity: switch.YOUR_DEVICE_NAME_output_1_compressor_bypass
+            name: Bypass
+          - entity: number.YOUR_DEVICE_NAME_output_1_compressor_threshold
+            name: Threshold
+          - entity: number.YOUR_DEVICE_NAME_output_1_compressor_ratio
+            name: Ratio
+          - entity: number.YOUR_DEVICE_NAME_output_1_compressor_attack
+            name: Attack
+          - entity: number.YOUR_DEVICE_NAME_output_1_compressor_release
+            name: Release
+
+      - type: entities
+        title: Compressor — Output 2
+        entities:
+          - entity: switch.YOUR_DEVICE_NAME_output_2_compressor_bypass
+            name: Bypass
+          - entity: number.YOUR_DEVICE_NAME_output_2_compressor_threshold
+            name: Threshold
+          - entity: number.YOUR_DEVICE_NAME_output_2_compressor_ratio
+            name: Ratio
+          - entity: number.YOUR_DEVICE_NAME_output_2_compressor_attack
+            name: Attack
+          - entity: number.YOUR_DEVICE_NAME_output_2_compressor_release
+            name: Release
+
+      - type: entities
+        title: Compressor — Output 3
+        entities:
+          - entity: switch.YOUR_DEVICE_NAME_output_3_compressor_bypass
+            name: Bypass
+          - entity: number.YOUR_DEVICE_NAME_output_3_compressor_threshold
+            name: Threshold
+          - entity: number.YOUR_DEVICE_NAME_output_3_compressor_ratio
+            name: Ratio
+          - entity: number.YOUR_DEVICE_NAME_output_3_compressor_attack
+            name: Attack
+          - entity: number.YOUR_DEVICE_NAME_output_3_compressor_release
+            name: Release
+
+      - type: entities
+        title: Compressor — Output 4
+        entities:
+          - entity: switch.YOUR_DEVICE_NAME_output_4_compressor_bypass
+            name: Bypass
+          - entity: number.YOUR_DEVICE_NAME_output_4_compressor_threshold
+            name: Threshold
+          - entity: number.YOUR_DEVICE_NAME_output_4_compressor_ratio
+            name: Ratio
+          - entity: number.YOUR_DEVICE_NAME_output_4_compressor_attack
+            name: Attack
+          - entity: number.YOUR_DEVICE_NAME_output_4_compressor_release
+            name: Release
+
+      # ─────────────────────────────────────────────────────────────
+      # SECTION 6 — Diagnostics
+      # Device profile and hardware info. These are read-only.
+      # ─────────────────────────────────────────────────────────────
+      - type: entities
+        title: Diagnostics
+        entities:
+          - entity: sensor.YOUR_DEVICE_NAME_device_profile
+            name: Device Profile
+          - entity: sensor.YOUR_DEVICE_NAME_hardware_id
+            name: Hardware ID
+          - entity: sensor.YOUR_DEVICE_NAME_dsp_version
+            name: DSP Version
+          - entity: sensor.YOUR_DEVICE_NAME_serial_number
+            name: Serial Number
