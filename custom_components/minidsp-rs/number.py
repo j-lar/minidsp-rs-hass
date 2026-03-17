@@ -43,7 +43,7 @@ class MiniDSPMasterGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
         await self.coordinator.api.async_set_volume(float(value))
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -77,7 +77,7 @@ class MiniDSPOutputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
         await self.coordinator.api.async_set_output_gain(self._output_index, float(value))
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -111,7 +111,7 @@ class MiniDSPInputGain(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
         await self.coordinator.api.async_set_input_gain(self._input_index, float(value))
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -149,7 +149,7 @@ class MiniDSPOutputDelay(CoordinatorEntity[MiniDSPCoordinator], NumberEntity):
 
     async def async_set_native_value(self, value: float):  # type: ignore[override]
         await self.coordinator.api.async_set_output_delay(self._output_index, float(value))
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -202,7 +202,7 @@ class MiniDSPOutputCompressorNumber(CoordinatorEntity[MiniDSPCoordinator], Numbe
         await self.coordinator.api.async_set_output_compressor(
             self._output_index, **{self._param: float(value)}
         )
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]

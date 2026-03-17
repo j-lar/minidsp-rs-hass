@@ -10,7 +10,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
 from .api import MiniDSPAPI
-from .const import CONF_DEVICE_INDEX, CONF_MODEL, DEVICE_PROFILES, DOMAIN, PROFILE_2X4HD
+from .const import (
+    CONF_DEVICE_INDEX,
+    CONF_LEVEL_INTERVAL,
+    CONF_MODEL,
+    DEFAULT_LEVEL_INTERVAL,
+    DEVICE_PROFILES,
+    DOMAIN,
+    PROFILE_2X4HD,
+)
 
 from homeassistant import config_entries
 
@@ -97,6 +105,9 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
                     CONF_URL: user_input[CONF_URL],
                     CONF_MODEL: user_input.get(CONF_MODEL, PROFILE_2X4HD),
                     CONF_DEVICE_INDEX: int(user_input.get(CONF_DEVICE_INDEX, 0)),
+                    CONF_LEVEL_INTERVAL: float(
+                        user_input.get(CONF_LEVEL_INTERVAL, DEFAULT_LEVEL_INTERVAL)
+                    ),
                 },
             )
 
@@ -109,6 +120,12 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
         current_device_index = self._entry.options.get(
             CONF_DEVICE_INDEX, self._entry.data.get(CONF_DEVICE_INDEX, 0)
         )
+        current_level_interval = float(
+            self._entry.options.get(
+                CONF_LEVEL_INTERVAL,
+                self._entry.data.get(CONF_LEVEL_INTERVAL, DEFAULT_LEVEL_INTERVAL),
+            )
+        )
         schema = vol.Schema(
             {
                 vol.Required(CONF_URL, default=current_url): str,
@@ -116,6 +133,9 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(CONF_MODEL, default=current_model): vol.In(
                     list(DEVICE_PROFILES.keys())
                 ),
+                vol.Required(
+                    CONF_LEVEL_INTERVAL, default=current_level_interval
+                ): vol.In([0.0, 0.25, 0.5, 1.0, 2.0, 5.0]),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

@@ -6,6 +6,11 @@ SCAN_INTERVAL_SECONDS = 1
 # Config entry options
 CONF_MODEL = "model"
 CONF_DEVICE_INDEX = "device_index"
+CONF_LEVEL_INTERVAL = "level_interval"
+
+# How often (seconds) level sensor pushes are forwarded to HA entities.
+# 0.0 = no throttling (pass every WS message through).
+DEFAULT_LEVEL_INTERVAL = 1.0
 
 # Volume / gain boundaries (dB)
 MASTER_VOLUME_MIN_DB = -127.0

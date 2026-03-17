@@ -11,7 +11,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import MiniDSPAPI
 from .const import (
     CONF_DEVICE_INDEX,
+    CONF_LEVEL_INTERVAL,
     CONF_MODEL,
+    DEFAULT_LEVEL_INTERVAL,
     DEVICE_PROFILES,
     DOMAIN,
     PRODUCT_NAME_MODEL_MAP,
@@ -102,8 +104,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         model = PROFILE_2X4HD
         profile = DEVICE_PROFILES[PROFILE_2X4HD]
+    level_interval = float(
+        entry.options.get(
+            CONF_LEVEL_INTERVAL,
+            entry.data.get(CONF_LEVEL_INTERVAL, DEFAULT_LEVEL_INTERVAL),
+        )
+    )
     coordinator = MiniDSPCoordinator(
-        hass, api, name=entry.title, profile=profile, profile_name=model
+        hass,
+        api,
+        name=entry.title,
+        profile=profile,
+        profile_name=model,
+        level_update_interval=level_interval,
     )
     coordinator.device_info = device_info
     if model_from_device and entry.options.get(CONF_MODEL) != model_from_device:

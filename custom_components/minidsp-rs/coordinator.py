@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
@@ -8,9 +10,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
-from .const import DOMAIN
+from .const import DEFAULT_LEVEL_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+# How long to wait after the last command before issuing a refresh (seconds).
+_REFRESH_DEBOUNCE_SECONDS = 0.3
 
 
 class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -23,6 +28,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         name: str | None = None,
         profile: dict[str, Any] | None = None,
         profile_name: str | None = None,
+        level_update_interval: float = DEFAULT_LEVEL_INTERVAL,
     ):
         super().__init__(
             hass,
@@ -39,6 +45,10 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Expose to entities
         self.base_url = api._base_url
         self.address = self.base_url  # alias for clarity
+
+        self.level_update_interval = level_update_interval
+        self._last_level_push: float = 0.0
+        self._refresh_debounce_handle: asyncio.TimerHandle | None = None
 
     @property
     def api(self) -> MiniDSPAPI:
@@ -61,6 +71,25 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             model=product_name or self.profile_name,
         )
 
+    def async_schedule_refresh(self) -> None:
+        """Schedule a debounced full state refresh.
+
+        Cancels any pending refresh and schedules a new one after
+        _REFRESH_DEBOUNCE_SECONDS. Rapid command bursts (e.g. slider drags)
+        collapse into a single HTTP GET.
+        """
+        if self._refresh_debounce_handle is not None:
+            self._refresh_debounce_handle.cancel()
+
+        self._refresh_debounce_handle = self.hass.loop.call_later(
+            _REFRESH_DEBOUNCE_SECONDS,
+            lambda: self.hass.async_create_task(self._do_debounced_refresh()),
+        )
+
+    async def _do_debounced_refresh(self) -> None:
+        self._refresh_debounce_handle = None
+        await self.async_request_refresh()
+
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             data = await self._api.async_get_status()
@@ -81,6 +110,8 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Update only levels fields without re-fetching everything
             current = dict(self.data or {})
             updated = False
+            levels_only = True  # track whether only level data changed
+
             for key in ("input_levels", "output_levels"):
                 if key in event:
                     new_list = [
@@ -93,6 +124,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Handle master status updates
             if "master_status" in event or "master" in event:
+                levels_only = False
                 incoming_master = event.get("master_status") or event.get("master")
                 if isinstance(incoming_master, dict):
                     if "master" not in current or not isinstance(
@@ -113,10 +145,12 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Handle inputs/outputs updates
             if "inputs" in event and isinstance(event["inputs"], list):
+                levels_only = False
                 current["inputs"] = event["inputs"]
                 updated = True
 
             if "outputs" in event and isinstance(event["outputs"], list):
+                levels_only = False
                 current["outputs"] = event["outputs"]
                 updated = True
 
@@ -132,13 +166,26 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             current[key] = new_list
                             updated = True
 
-            if updated:
-                # Push incremental update to listeners
-                self.async_set_updated_data(current)
+            if not updated:
+                return
+
+            # For level-only updates, apply throttling so HA isn't flooded
+            # with entity state changes at the full WS polling rate.
+            if levels_only and self.level_update_interval > 0.0:
+                now = time.monotonic()
+                if now - self._last_level_push < self.level_update_interval:
+                    return
+                self._last_level_push = now
+
+            # Push incremental update to listeners
+            self.async_set_updated_data(current)
 
         self._unsubscribe_ws = await self._api.async_subscribe_levels(_levels_callback)
 
     async def async_disconnect(self):
+        if self._refresh_debounce_handle is not None:
+            self._refresh_debounce_handle.cancel()
+            self._refresh_debounce_handle = None
         if self._unsubscribe_ws:
             self._unsubscribe_ws()
             self._unsubscribe_ws = None
