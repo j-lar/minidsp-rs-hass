@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_DIRAC_UPGRADE, DOMAIN
 from .coordinator import MiniDSPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,11 +33,11 @@ class DiracLiveSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_dirac(True)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_dirac(False)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -63,11 +63,11 @@ class MuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_mute(True)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_mute(False)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -100,11 +100,11 @@ class OutputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_output_mute(self._output_index, True)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_output_mute(self._output_index, False)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -137,11 +137,11 @@ class InputMuteSwitch(CoordinatorEntity[MiniDSPCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_input_mute(self._input_index, True)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_input_mute(self._input_index, False)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -177,13 +177,13 @@ class OutputCompressorBypassSwitch(CoordinatorEntity[MiniDSPCoordinator], Switch
         await self.coordinator.api.async_set_output_compressor(
             self._output_index, bypass=True
         )
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:  # type: ignore[override]
         await self.coordinator.api.async_set_output_compressor(
             self._output_index, bypass=False
         )
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -202,12 +202,24 @@ async def async_setup_entry(
     data = coordinator.data or {}
     num_inputs = len(data.get("input_levels", []))
     num_outputs = len(data.get("output_levels", []))
+    profile = coordinator.profile
+    has_compressor = profile.get("has_compressor", False)
 
-    entities: list[SwitchEntity] = [DiracLiveSwitch(coordinator), MuteSwitch(coordinator)]
+    dirac_upgrade_purchased = bool(
+        entry.options.get(CONF_DIRAC_UPGRADE, entry.data.get(CONF_DIRAC_UPGRADE, False))
+    )
+    show_dirac = profile.get("has_dirac", False) and (
+        not profile.get("dirac_is_upgrade", False) or dirac_upgrade_purchased
+    )
+
+    entities: list[SwitchEntity] = [MuteSwitch(coordinator)]
+    if show_dirac:
+        entities.append(DiracLiveSwitch(coordinator))
 
     for i in range(num_outputs):
         entities.append(OutputMuteSwitch(coordinator, i))
-        entities.append(OutputCompressorBypassSwitch(coordinator, i))
+        if has_compressor:
+            entities.append(OutputCompressorBypassSwitch(coordinator, i))
 
     for i in range(num_inputs):
         entities.append(InputMuteSwitch(coordinator, i))

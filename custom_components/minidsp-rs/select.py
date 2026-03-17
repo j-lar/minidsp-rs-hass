@@ -45,7 +45,7 @@ class PresetSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
             _LOGGER.warning("Unknown preset option %s", option)
             return
         await self.coordinator.api.async_set_preset(self._label_to_index[option])
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -80,7 +80,7 @@ class SourceSelect(CoordinatorEntity[MiniDSPCoordinator], SelectEntity):
     async def async_select_option(self, option: str) -> None:  # type: ignore[override]
         api_val = self._label_to_api.get(option, option)
         await self.coordinator.api.async_set_source(api_val)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.async_schedule_refresh()
 
     @property
     def device_info(self):  # type: ignore[override]
@@ -96,4 +96,7 @@ async def async_setup_entry(
         _LOGGER.error("Coordinator not found during select platform setup")
         return
 
-    async_add_entities([PresetSelect(coordinator), SourceSelect(coordinator)])
+    entities: list[SelectEntity] = [PresetSelect(coordinator)]
+    if coordinator.profile.get("sources"):
+        entities.append(SourceSelect(coordinator))
+    async_add_entities(entities)

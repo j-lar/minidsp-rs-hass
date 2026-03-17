@@ -10,7 +10,16 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
 from .api import MiniDSPAPI
-from .const import CONF_DEVICE_INDEX, CONF_MODEL, DEVICE_PROFILES, DOMAIN, PROFILE_2X4HD
+from .const import (
+    CONF_DEVICE_INDEX,
+    CONF_DIRAC_UPGRADE,
+    CONF_LEVEL_INTERVAL,
+    CONF_MODEL,
+    DEFAULT_LEVEL_INTERVAL,
+    DEVICE_PROFILES,
+    DOMAIN,
+    PROFILE_2X4HD,
+)
 
 from homeassistant import config_entries
 
@@ -97,6 +106,12 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
                     CONF_URL: user_input[CONF_URL],
                     CONF_MODEL: user_input.get(CONF_MODEL, PROFILE_2X4HD),
                     CONF_DEVICE_INDEX: int(user_input.get(CONF_DEVICE_INDEX, 0)),
+                    CONF_LEVEL_INTERVAL: float(
+                        user_input.get(CONF_LEVEL_INTERVAL, DEFAULT_LEVEL_INTERVAL)
+                    ),
+                    CONF_DIRAC_UPGRADE: bool(
+                        user_input.get(CONF_DIRAC_UPGRADE, False)
+                    ),
                 },
             )
 
@@ -109,13 +124,32 @@ class MiniDSPOptionsFlow(config_entries.OptionsFlow):
         current_device_index = self._entry.options.get(
             CONF_DEVICE_INDEX, self._entry.data.get(CONF_DEVICE_INDEX, 0)
         )
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_URL, default=current_url): str,
-                vol.Required(CONF_DEVICE_INDEX, default=current_device_index): vol.Coerce(int),
-                vol.Required(CONF_MODEL, default=current_model): vol.In(
-                    list(DEVICE_PROFILES.keys())
-                ),
-            }
+        current_level_interval = float(
+            self._entry.options.get(
+                CONF_LEVEL_INTERVAL,
+                self._entry.data.get(CONF_LEVEL_INTERVAL, DEFAULT_LEVEL_INTERVAL),
+            )
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        current_profile = DEVICE_PROFILES.get(current_model, {})
+        dirac_is_upgrade = current_profile.get("dirac_is_upgrade", False)
+        current_dirac_upgrade = bool(
+            self._entry.options.get(
+                CONF_DIRAC_UPGRADE,
+                self._entry.data.get(CONF_DIRAC_UPGRADE, False),
+            )
+        )
+
+        fields: dict = {
+            vol.Required(CONF_URL, default=current_url): str,
+            vol.Required(CONF_DEVICE_INDEX, default=current_device_index): vol.Coerce(int),
+            vol.Required(CONF_MODEL, default=current_model): vol.In(
+                list(DEVICE_PROFILES.keys())
+            ),
+            vol.Required(
+                CONF_LEVEL_INTERVAL, default=current_level_interval
+            ): vol.In([0.0, 0.25, 0.5, 1.0, 2.0, 5.0]),
+        }
+        if dirac_is_upgrade:
+            fields[vol.Optional(CONF_DIRAC_UPGRADE, default=current_dirac_upgrade)] = bool
+
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))
