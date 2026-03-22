@@ -1,0 +1,391 @@
+# MiniDSP Lovelace Dashboard — Redesigned Layout
+#
+# Layout intent:
+#   Organized by cognitive salience (usage frequency), not entity type.
+#   1. Mode selector (presets) — always visible at top, highest-level decision
+#   2. Active levels & controls — always visible, most frequently adjusted
+#   3. Collapsible sections — hidden by default, used intentionally
+#
+# Required HACS custom cards:
+#   - button-card:   https://github.com/custom-cards/button-card
+#   - expander-card: https://github.com/Alia5/lovelace-expander-card
+#
+# How to use:
+#   1. Install the required HACS cards above.
+#   2. In Home Assistant, go to Settings -> Dashboards -> Add Dashboard.
+#   3. Open the dashboard editor, click the three-dot menu -> "Edit in YAML".
+#   4. Paste this file's contents.
+#   5. Replace every occurrence of YOUR_DEVICE_NAME with your device slug.
+#      (Find it in Developer Tools -> States, search for "minidsp".)
+#
+# This example is written for a 2x4 HD (2 inputs, 4 outputs, 4 presets).
+# Adjust input/output sections to match your device's channel count.
+
+title: MiniDSP
+views:
+  - title: MiniDSP
+    path: minidsp
+    icon: mdi:amplifier
+    cards:
+
+      # ─────────────────────────────────────────────────────────────
+      # MODE SELECTOR — Preset buttons (always visible)
+      # These are the highest-level user decision, so they appear first.
+      # SUBSTITUTE: Change preset names below to match your setup.
+      # ─────────────────────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          # SUBSTITUTE: Change "Preset 1" to your preset name (e.g. "Listening")
+          - type: custom:button-card
+            name: Preset 1
+            icon: mdi:numeric-1-circle
+            entity: select.YOUR_DEVICE_NAME_preset
+            tap_action:
+              action: call-service
+              service: select.select_option
+              service_data:
+                entity_id: select.YOUR_DEVICE_NAME_preset
+                option: Preset 1
+            styles:
+              card:
+                - background-color: |
+                    [[[
+                      return entity.state === 'Preset 1'
+                        ? 'var(--primary-color)'
+                        : 'var(--card-background-color)';
+                    ]]]
+                - color: |
+                    [[[
+                      return entity.state === 'Preset 1'
+                        ? 'var(--text-primary-color)'
+                        : 'var(--primary-text-color)';
+                    ]]]
+                - border-radius: 8px
+                - padding: 8px
+
+          # SUBSTITUTE: Change "Preset 2" to your preset name (e.g. "Movie")
+          - type: custom:button-card
+            name: Preset 2
+            icon: mdi:numeric-2-circle
+            entity: select.YOUR_DEVICE_NAME_preset
+            tap_action:
+              action: call-service
+              service: select.select_option
+              service_data:
+                entity_id: select.YOUR_DEVICE_NAME_preset
+                option: Preset 2
+            styles:
+              card:
+                - background-color: |
+                    [[[
+                      return entity.state === 'Preset 2'
+                        ? 'var(--primary-color)'
+                        : 'var(--card-background-color)';
+                    ]]]
+                - color: |
+                    [[[
+                      return entity.state === 'Preset 2'
+                        ? 'var(--text-primary-color)'
+                        : 'var(--primary-text-color)';
+                    ]]]
+                - border-radius: 8px
+                - padding: 8px
+
+          # SUBSTITUTE: Change "Preset 3" to your preset name (e.g. "Karaoke")
+          - type: custom:button-card
+            name: Preset 3
+            icon: mdi:numeric-3-circle
+            entity: select.YOUR_DEVICE_NAME_preset
+            tap_action:
+              action: call-service
+              service: select.select_option
+              service_data:
+                entity_id: select.YOUR_DEVICE_NAME_preset
+                option: Preset 3
+            styles:
+              card:
+                - background-color: |
+                    [[[
+                      return entity.state === 'Preset 3'
+                        ? 'var(--primary-color)'
+                        : 'var(--card-background-color)';
+                    ]]]
+                - color: |
+                    [[[
+                      return entity.state === 'Preset 3'
+                        ? 'var(--text-primary-color)'
+                        : 'var(--primary-text-color)';
+                    ]]]
+                - border-radius: 8px
+                - padding: 8px
+
+          # SUBSTITUTE: Change "Preset 4" to your preset name (e.g. "Night")
+          - type: custom:button-card
+            name: Preset 4
+            icon: mdi:numeric-4-circle
+            entity: select.YOUR_DEVICE_NAME_preset
+            tap_action:
+              action: call-service
+              service: select.select_option
+              service_data:
+                entity_id: select.YOUR_DEVICE_NAME_preset
+                option: Preset 4
+            styles:
+              card:
+                - background-color: |
+                    [[[
+                      return entity.state === 'Preset 4'
+                        ? 'var(--primary-color)'
+                        : 'var(--card-background-color)';
+                    ]]]
+                - color: |
+                    [[[
+                      return entity.state === 'Preset 4'
+                        ? 'var(--text-primary-color)'
+                        : 'var(--primary-text-color)';
+                    ]]]
+                - border-radius: 8px
+                - padding: 8px
+
+      # ─────────────────────────────────────────────────────────────
+      # ACTIVE LEVELS & CONTROLS — Always visible
+      # Most frequently adjusted controls: volume, mute, source, Dirac.
+      # ─────────────────────────────────────────────────────────────
+      - type: entities
+        title: Controls
+        entities:
+          - entity: number.YOUR_DEVICE_NAME_master_volume
+            name: Master Volume (dB)
+          - entity: switch.YOUR_DEVICE_NAME_mute
+            name: Master Mute
+          - entity: switch.YOUR_DEVICE_NAME_dirac_live
+            name: Dirac Live
+          - entity: select.YOUR_DEVICE_NAME_source
+            name: Input Source
+
+      # Signal level gauges — inputs
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_input_level_1
+            name: In 1
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_input_level_2
+            name: In 2
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+      # Signal level gauges — outputs
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_1
+            name: Out 1
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_2
+            name: Out 2
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_3
+            name: Out 3
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+          - type: gauge
+            entity: sensor.YOUR_DEVICE_NAME_output_level_4
+            name: Out 4
+            unit: dBFS
+            min: -60
+            max: 0
+            needle: true
+            severity:
+              green: -60
+              yellow: -12
+              red: -3
+
+      # ─────────────────────────────────────────────────────────────
+      # COLLAPSIBLE SECTIONS — Hidden by default
+      # Grouped by function. Expand only when needed.
+      # ─────────────────────────────────────────────────────────────
+
+      # --- Input Channels ---
+      # SUBSTITUTE: Add or remove input rows to match your device's input count.
+      - type: custom:expander-card
+        title: Input Channels
+        expanded: false
+        cards:
+          - type: entities
+            entities:
+              - type: section
+                label: Input 1
+              - entity: number.YOUR_DEVICE_NAME_input_1_gain
+                name: Gain
+              - entity: switch.YOUR_DEVICE_NAME_input_1_mute
+                name: Mute
+
+              - type: section
+                label: Input 2
+              - entity: number.YOUR_DEVICE_NAME_input_2_gain
+                name: Gain
+              - entity: switch.YOUR_DEVICE_NAME_input_2_mute
+                name: Mute
+
+      # --- Output Channels ---
+      # SUBSTITUTE: Add or remove output blocks to match your device's output count.
+      - type: custom:expander-card
+        title: Output Channels
+        expanded: false
+        cards:
+          - type: entities
+            entities:
+              - type: section
+                label: Output 1
+              - entity: number.YOUR_DEVICE_NAME_output_1_gain
+                name: Gain
+              - entity: number.YOUR_DEVICE_NAME_output_1_delay
+                name: Delay
+              - entity: switch.YOUR_DEVICE_NAME_output_1_mute
+                name: Mute
+
+              - type: section
+                label: Output 2
+              - entity: number.YOUR_DEVICE_NAME_output_2_gain
+                name: Gain
+              - entity: number.YOUR_DEVICE_NAME_output_2_delay
+                name: Delay
+              - entity: switch.YOUR_DEVICE_NAME_output_2_mute
+                name: Mute
+
+              - type: section
+                label: Output 3
+              - entity: number.YOUR_DEVICE_NAME_output_3_gain
+                name: Gain
+              - entity: number.YOUR_DEVICE_NAME_output_3_delay
+                name: Delay
+              - entity: switch.YOUR_DEVICE_NAME_output_3_mute
+                name: Mute
+
+              - type: section
+                label: Output 4
+              - entity: number.YOUR_DEVICE_NAME_output_4_gain
+                name: Gain
+              - entity: number.YOUR_DEVICE_NAME_output_4_delay
+                name: Delay
+              - entity: switch.YOUR_DEVICE_NAME_output_4_mute
+                name: Mute
+
+      # --- Compressor ---
+      # SUBSTITUTE: Add or remove output blocks to match your device's output count.
+      # Only applicable to devices with compressor support.
+      - type: custom:expander-card
+        title: Compressor
+        expanded: false
+        cards:
+          - type: entities
+            entities:
+              - type: section
+                label: Output 1
+              - entity: switch.YOUR_DEVICE_NAME_output_1_compressor_bypass
+                name: Bypass
+              - entity: number.YOUR_DEVICE_NAME_output_1_compressor_threshold
+                name: Threshold
+              - entity: number.YOUR_DEVICE_NAME_output_1_compressor_ratio
+                name: Ratio
+              - entity: number.YOUR_DEVICE_NAME_output_1_compressor_attack
+                name: Attack
+              - entity: number.YOUR_DEVICE_NAME_output_1_compressor_release
+                name: Release
+
+              - type: section
+                label: Output 2
+              - entity: switch.YOUR_DEVICE_NAME_output_2_compressor_bypass
+                name: Bypass
+              - entity: number.YOUR_DEVICE_NAME_output_2_compressor_threshold
+                name: Threshold
+              - entity: number.YOUR_DEVICE_NAME_output_2_compressor_ratio
+                name: Ratio
+              - entity: number.YOUR_DEVICE_NAME_output_2_compressor_attack
+                name: Attack
+              - entity: number.YOUR_DEVICE_NAME_output_2_compressor_release
+                name: Release
+
+              - type: section
+                label: Output 3
+              - entity: switch.YOUR_DEVICE_NAME_output_3_compressor_bypass
+                name: Bypass
+              - entity: number.YOUR_DEVICE_NAME_output_3_compressor_threshold
+                name: Threshold
+              - entity: number.YOUR_DEVICE_NAME_output_3_compressor_ratio
+                name: Ratio
+              - entity: number.YOUR_DEVICE_NAME_output_3_compressor_attack
+                name: Attack
+              - entity: number.YOUR_DEVICE_NAME_output_3_compressor_release
+                name: Release
+
+              - type: section
+                label: Output 4
+              - entity: switch.YOUR_DEVICE_NAME_output_4_compressor_bypass
+                name: Bypass
+              - entity: number.YOUR_DEVICE_NAME_output_4_compressor_threshold
+                name: Threshold
+              - entity: number.YOUR_DEVICE_NAME_output_4_compressor_ratio
+                name: Ratio
+              - entity: number.YOUR_DEVICE_NAME_output_4_compressor_attack
+                name: Attack
+              - entity: number.YOUR_DEVICE_NAME_output_4_compressor_release
+                name: Release
+
+      # --- Diagnostics ---
+      # Read-only device information.
+      - type: custom:expander-card
+        title: Diagnostics
+        expanded: false
+        cards:
+          - type: entities
+            entities:
+              - entity: sensor.YOUR_DEVICE_NAME_device_profile
+                name: Device Profile
+              - entity: sensor.YOUR_DEVICE_NAME_hardware_id
+                name: Hardware ID
+              - entity: sensor.YOUR_DEVICE_NAME_dsp_version
+                name: DSP Version
+              - entity: sensor.YOUR_DEVICE_NAME_serial_number
+                name: Serial Number
