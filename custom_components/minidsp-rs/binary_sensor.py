@@ -29,7 +29,17 @@ class MiniDSPConnectionSensor(CoordinatorEntity[MiniDSPCoordinator], BinarySenso
 
     @property
     def is_on(self):  # type: ignore[override]
-        return self.coordinator.last_update_success
+        return self.coordinator.http_available
+
+    @property
+    def extra_state_attributes(self):  # type: ignore[override]
+        return {
+            "http_available": self.coordinator.http_available,
+            "ws_available": self.coordinator.ws_available,
+            "ws_connected": self.coordinator.api.ws_connected,
+            "last_http_ok": self.coordinator.last_http_ok,
+            "last_ws_msg_at": self.coordinator.last_ws_msg_at,
+        }
 
     @property
     def device_info(self):  # type: ignore[override]

@@ -126,6 +126,8 @@ def mock_api():
     api.async_set_preset = AsyncMock(return_value=None)
     api.async_set_output_gain = AsyncMock(return_value=None)
     api.async_disconnect = AsyncMock(return_value=None)
+    api.ws_connected = False
+    api.last_ws_msg_at = None
 
     # WebSocket subscription — capture callback for later inspection
     _captured: list = []
@@ -157,6 +159,10 @@ def mock_coordinator():
     coord = MagicMock()
     coord.data = dict(MOCK_STATUS)
     coord.last_update_success = True
+    coord.http_available = True
+    coord.ws_available = True
+    coord.last_http_ok = 123.0
+    coord.last_ws_msg_at = 124.0
     coord.address = BASE_URL
     coord.name = "Test MiniDSP"
     coord.profile_name = PROFILE_2X4HD
@@ -169,6 +175,8 @@ def mock_coordinator():
         "model": "2x4 HD",
     }
     coord._api = MagicMock()
+    coord.api = coord._api
+    coord._api.ws_connected = True
     coord._api.async_set_volume = AsyncMock()
     coord._api.async_set_mute = AsyncMock()
     coord._api.async_set_dirac = AsyncMock()

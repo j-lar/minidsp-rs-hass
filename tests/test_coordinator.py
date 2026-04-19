@@ -15,6 +15,7 @@ MiniDSPCoordinator = _coord_mod.MiniDSPCoordinator
 _const_mod = importlib.import_module("custom_components.minidsp-rs.const")
 DEVICE_PROFILES = _const_mod.DEVICE_PROFILES
 DOMAIN = _const_mod.DOMAIN
+HEALTH_POLL_INTERVAL_SECONDS = _const_mod.HEALTH_POLL_INTERVAL_SECONDS
 PROFILE_2X4HD = _const_mod.PROFILE_2X4HD
 
 from .conftest import BASE_URL, MOCK_STATUS
@@ -49,6 +50,8 @@ async def test_update_data_returns_rounded(hass, mock_api):
     data = await coord._async_update_data()
     assert data["master"]["volume"] == -20  # rounded
     assert isinstance(data["input_levels"][0], int)
+    assert coord.http_available is True
+    assert coord.last_http_ok is not None
 
 
 async def test_update_data_raises_update_failed_on_error(hass, mock_api):
@@ -58,6 +61,23 @@ async def test_update_data_raises_update_failed_on_error(hass, mock_api):
     coord = _make_coordinator(hass, mock_api)
     with pytest.raises(UpdateFailed):
         await coord._async_update_data()
+    assert coord.http_available is False
+
+
+async def test_periodic_http_recovery_path(hass, mock_api):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    coord = _make_coordinator(hass, mock_api)
+    mock_api.async_get_status = AsyncMock(side_effect=RuntimeError("down"))
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+    assert coord.http_available is False
+
+    mock_api.async_get_status = AsyncMock(return_value=MOCK_STATUS)
+    data = await coord._async_update_data()
+    assert data["master"]["volume"] == -20
+    assert coord.http_available is True
+    assert coord.transport_available is True
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +162,7 @@ async def test_levels_callback_updates_input_levels(hass, mock_api):
         mock_set.assert_called_once()
         updated = mock_set.call_args[0][0]
         assert updated["input_levels"] == new_levels
+        assert coord.last_ws_msg_at is not None
 
 
 async def test_levels_callback_no_op_when_unchanged(hass, mock_api):
@@ -207,3 +228,19 @@ async def test_disconnect_calls_api_and_unsubscribe(hass, mock_api):
     await coord.async_disconnect()
     mock_api.unsubscribe_mock.assert_called_once()
     mock_api.async_disconnect.assert_awaited_once()
+
+
+def test_health_poll_interval_is_enabled(hass, mock_api):
+    coord = _make_coordinator(hass, mock_api)
+    assert coord.update_interval is not None
+    assert coord.update_interval.total_seconds() == HEALTH_POLL_INTERVAL_SECONDS
+
+
+def test_ws_available_uses_connection_state(hass, mock_api):
+    coord = _make_coordinator(hass, mock_api)
+    mock_api.ws_connected = False
+    coord._last_ws_msg_at = None
+    assert coord.ws_available is False
+
+    mock_api.ws_connected = True
+    assert coord.ws_available is True

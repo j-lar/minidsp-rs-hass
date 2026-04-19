@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import importlib
 
@@ -47,7 +47,7 @@ async def test_async_get_status():
     api = MiniDSPAPI(BASE_URL, session)
     result = await api.async_get_status()
     assert result == MOCK_STATUS
-    session.get.assert_called_once_with(f"{BASE_URL}/devices/0")
+    session.get.assert_called_once_with(f"{BASE_URL}/devices/0", timeout=ANY)
     resp.raise_for_status.assert_called_once()
 
 
@@ -56,7 +56,7 @@ async def test_async_get_devices():
     api = MiniDSPAPI(BASE_URL, session)
     result = await api.async_get_devices()
     assert result == MOCK_DEVICES
-    session.get.assert_called_once_with(f"{BASE_URL}/devices")
+    session.get.assert_called_once_with(f"{BASE_URL}/devices", timeout=ANY)
 
 
 async def test_async_post_config():
@@ -65,7 +65,7 @@ async def test_async_post_config():
     payload = {"master_status": {"volume": -30.0}}
     await api.async_post_config(payload)
     session.post.assert_called_once_with(
-        f"{BASE_URL}/devices/0/config", json=payload
+        f"{BASE_URL}/devices/0/config", json=payload, timeout=ANY
     )
     resp.raise_for_status.assert_called_once()
 
@@ -75,7 +75,7 @@ async def test_device_index_respected():
     session, _ = _make_session(MOCK_STATUS)
     api = MiniDSPAPI(BASE_URL, session, device_index=2)
     await api.async_get_status()
-    session.get.assert_called_once_with(f"{BASE_URL}/devices/2")
+    session.get.assert_called_once_with(f"{BASE_URL}/devices/2", timeout=ANY)
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ async def test_convenience_setters(method, kwargs, expected_payload):
     api = MiniDSPAPI(BASE_URL, session)
     await getattr(api, method)(**kwargs)
     session.post.assert_called_once_with(
-        f"{BASE_URL}/devices/0/config", json=expected_payload
+        f"{BASE_URL}/devices/0/config", json=expected_payload, timeout=ANY
     )
 
 
@@ -161,6 +161,61 @@ async def test_unsubscribe_sets_stop_when_last_listener():
     api._listeners.append(cb)
     unsub()
     assert api._stop_event.is_set()
+
+
+async def test_subscribe_restarts_when_ws_task_is_done():
+    session, _ = _make_session()
+    api = MiniDSPAPI(BASE_URL, session)
+    cb = AsyncMock()
+    done_task = asyncio.create_task(asyncio.sleep(0))
+    await done_task
+    api._ws_task = done_task
+    api._stop_event.set()
+
+    new_task = MagicMock()
+    with patch.object(asyncio, "create_task", return_value=new_task) as mock_create:
+        await api.async_subscribe_levels(cb)
+
+    mock_create.assert_called_once()
+    assert api._ws_task is new_task
+    assert not api._stop_event.is_set()
+
+
+async def test_disconnect_then_subscribe_resets_stop_event():
+    session, _ = _make_session()
+    api = MiniDSPAPI(BASE_URL, session)
+    cb = AsyncMock()
+    api._ws_task = asyncio.create_task(asyncio.sleep(0))
+    await api.async_disconnect()
+    assert api._ws_task is None
+    assert api._stop_event.is_set()
+
+    with patch.object(asyncio, "create_task", return_value=MagicMock()):
+        await api.async_subscribe_levels(cb)
+    assert not api._stop_event.is_set()
+
+
+async def test_ws_listener_cleanup_after_unexpected_failure():
+    session, _ = _make_session()
+    api = MiniDSPAPI(BASE_URL, session)
+    api._stop_event = asyncio.Event()
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    session.ws_connect = _boom
+    sleep_calls = 0
+
+    async def _fake_sleep(_delay):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        api._stop_event.set()
+
+    with patch.object(asyncio, "sleep", new=_fake_sleep):
+        await api._ws_listener_task()
+
+    assert sleep_calls == 1
+    assert api._ws_task is None
 
 
 # ---------------------------------------------------------------------------

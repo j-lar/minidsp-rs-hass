@@ -2,6 +2,7 @@ DOMAIN = "minidsp"
 
 # Default update interval for polling device status
 SCAN_INTERVAL_SECONDS = 1
+HEALTH_POLL_INTERVAL_SECONDS = 45
 
 # Config entry options
 CONF_MODEL = "model"
