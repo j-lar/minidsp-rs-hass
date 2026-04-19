@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import timedelta
 from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
@@ -10,7 +11,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiniDSPAPI
-from .const import DEFAULT_LEVEL_INTERVAL, DOMAIN
+from .const import DEFAULT_LEVEL_INTERVAL, DOMAIN, HEALTH_POLL_INTERVAL_SECONDS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             _LOGGER,
             name=name or DOMAIN,
-            update_interval=None,
+            update_interval=timedelta(seconds=HEALTH_POLL_INTERVAL_SECONDS),
         )
         self._api = api
         self._unsubscribe_ws: Callable[[], None] | None = None
@@ -49,11 +50,45 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.level_update_interval = level_update_interval
         self._last_level_push: float = 0.0
         self._refresh_debounce_handle: asyncio.TimerHandle | None = None
+        self._http_available = False
+        self._last_http_ok: float | None = None
+        self._last_ws_msg_at: float | None = None
 
     @property
     def api(self) -> MiniDSPAPI:
         """Public accessor for the underlying API client."""
         return self._api
+
+    @property
+    def http_available(self) -> bool:
+        """Whether the HTTP status endpoint is currently reachable."""
+        return self._http_available
+
+    @property
+    def ws_available(self) -> bool:
+        """Whether websocket transport looks alive."""
+        if self._api.ws_connected:
+            return True
+        if self._last_ws_msg_at is None:
+            return False
+        return (time.monotonic() - self._last_ws_msg_at) < (
+            HEALTH_POLL_INTERVAL_SECONDS * 2
+        )
+
+    @property
+    def transport_available(self) -> bool:
+        """Composite transport health for diagnostics."""
+        return self.http_available
+
+    @property
+    def last_http_ok(self) -> float | None:
+        """Monotonic timestamp of the most recent successful HTTP refresh."""
+        return self._last_http_ok
+
+    @property
+    def last_ws_msg_at(self) -> float | None:
+        """Monotonic timestamp of the most recent websocket message."""
+        return self._last_ws_msg_at
 
     def get_master_value(self, key: str, default: Any = None) -> Any:
         """Return a value from the master status dict, or *default*."""
@@ -93,8 +128,11 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             data = await self._api.async_get_status()
+            self._http_available = True
+            self._last_http_ok = time.monotonic()
             return self._rounded_levels(data)
         except Exception as err:
+            self._http_available = False
             raise UpdateFailed(err) from err
 
     # ------------------------------------------------------------------
@@ -106,6 +144,7 @@ class MiniDSPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if event.get("_reconnected"):
                 self.hass.async_create_task(self.async_request_refresh())
                 return
+            self._last_ws_msg_at = time.monotonic()
 
             # Update only levels fields without re-fetching everything
             current = dict(self.data or {})

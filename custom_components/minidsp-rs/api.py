@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any, Callable, Coroutine
 
 import aiohttp
@@ -27,6 +28,8 @@ class MiniDSPAPI:
             Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
         ] = []
         self._stop_event = asyncio.Event()
+        self._last_ws_msg_at: float | None = None
+        self._ws_connected = False
 
     # ---------------------------------------------------------------------
     # Public helpers
@@ -152,7 +155,8 @@ class MiniDSPAPI:
         """
         self._listeners.append(callback)
 
-        if self._ws_task is None:
+        if self._ws_task is None or self._ws_task.done():
+            self._stop_event.clear()
             self._ws_task = asyncio.create_task(self._ws_listener_task())
 
         def _unsubscribe() -> None:
@@ -165,12 +169,14 @@ class MiniDSPAPI:
 
     async def async_disconnect(self) -> None:
         """Cancel the websocket task (if any)."""
-        if self._ws_task and not self._ws_task.done():
-            self._stop_event.set()
+        self._stop_event.set()
+        if self._ws_task:
             try:
                 await self._ws_task
             except asyncio.CancelledError:
                 pass
+        self._ws_task = None
+        self._ws_connected = False
 
     # ---------------------------------------------------------------------
 
@@ -178,40 +184,59 @@ class MiniDSPAPI:
         """Background task that maintains the websocket connection."""
         ws_url = self._build_ws_url()
         backoff = 1.0
-        while not self._stop_event.is_set():
-            try:
-                _LOGGER.debug("Connecting to MiniDSP websocket at %s", ws_url)
-                async with self._session.ws_connect(ws_url, heartbeat=30) as ws:
-                    backoff = 1.0  # Reset backoff after successful connect
-                    await self._dispatch_event({"_reconnected": True})
-                    async for msg in ws:
-                        if msg.type == aiohttp.WSMsgType.TEXT:
-                            try:
-                                data = json.loads(msg.data)
-                            except json.JSONDecodeError as err:
-                                _LOGGER.warning(
-                                    "Failed to decode websocket message: %s", err
-                                )
-                                continue
-                            _LOGGER.debug("Websocket message: %s", data)
-                            await self._dispatch_event(data)
-                        elif msg.type == aiohttp.WSMsgType.CLOSED:
-                            _LOGGER.debug("Websocket closed")
-                            break
-                        elif msg.type == aiohttp.WSMsgType.ERROR:
-                            _LOGGER.debug("Websocket error: %s", ws.exception())
-                            break
-            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-                _LOGGER.warning("Websocket connection failed: %s", err)
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    _LOGGER.debug("Connecting to MiniDSP websocket at %s", ws_url)
+                    async with self._session.ws_connect(ws_url, heartbeat=30) as ws:
+                        self._ws_connected = True
+                        backoff = 1.0  # Reset backoff after successful connect
+                        await self._dispatch_event({"_reconnected": True})
+                        async for msg in ws:
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    data = json.loads(msg.data)
+                                except json.JSONDecodeError as err:
+                                    _LOGGER.warning(
+                                        "Failed to decode websocket message: %s", err
+                                    )
+                                    continue
+                                self._last_ws_msg_at = time.monotonic()
+                                _LOGGER.debug("Websocket message: %s", data)
+                                await self._dispatch_event(data)
+                            elif msg.type == aiohttp.WSMsgType.CLOSED:
+                                _LOGGER.debug("Websocket closed")
+                                break
+                            elif msg.type == aiohttp.WSMsgType.ERROR:
+                                _LOGGER.debug("Websocket error: %s", ws.exception())
+                                break
+                except asyncio.CancelledError:
+                    raise
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Websocket connection failed: %s", err)
+                finally:
+                    self._ws_connected = False
 
-            if self._stop_event.is_set():
-                break
+                if self._stop_event.is_set():
+                    break
 
-            # Reconnect with exponential backoff
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2.0, 60.0)
+                # Reconnect with exponential backoff
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2.0, 60.0)
+        finally:
+            self._ws_connected = False
+            self._ws_task = None
+            _LOGGER.debug("MiniDSP websocket listener stopped")
 
-        _LOGGER.debug("MiniDSP websocket listener stopped")
+    @property
+    def ws_connected(self) -> bool:
+        """Return whether the websocket is currently connected."""
+        return self._ws_connected
+
+    @property
+    def last_ws_msg_at(self) -> float | None:
+        """Return monotonic timestamp of last received websocket message."""
+        return self._last_ws_msg_at
 
     async def _dispatch_event(self, event: dict[str, Any]) -> None:
         for cb in list(self._listeners):
